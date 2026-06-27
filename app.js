@@ -302,10 +302,24 @@ const sound = new SoundGenerator();
 // ==========================================================================
 function loadState() {
     const saved = localStorage.getItem("blue_voyage_state");
+    const todayStr = new Date().toLocaleDateString("ja-JP");
+
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
             STATE = { ...STATE, ...parsed };
+
+            // 日付が変わった時のスケジュール自動リセット
+            if (parsed.lastSavedDate && parsed.lastSavedDate !== todayStr) {
+                if (STATE.schedules) {
+                    STATE.schedules.forEach(s => {
+                        s.status = "pending";
+                        s.notifiedStages = [];
+                    });
+                }
+                STATE.lastSavedDate = todayStr;
+                saveState(true); // 自動リセット時は再帰・多重同期を防ぐためpushはスキップしてローカル保存のみ
+            }
         } catch (e) {
             console.error("データの読み込みに失敗しました。デフォルト値を使用します。", e);
         }
@@ -313,6 +327,7 @@ function loadState() {
         // 初回起動時はデフォルトスケジュールをセット
         STATE.schedules = [...DEFAULT_SCHEDULES];
         STATE.shopRewards = [...DEFAULT_REWARDS];
+        STATE.lastSavedDate = todayStr;
         saveState();
     }
     
@@ -323,6 +338,9 @@ function loadState() {
 }
 
 function saveState(skipPush = false) {
+    const todayStr = new Date().toLocaleDateString("ja-JP");
+    STATE.lastSavedDate = todayStr;
+
     // タイマーIDなどの非シリアライズオブジェクトは除外して保存
     const toSave = {
         level: STATE.level,
@@ -338,7 +356,8 @@ function saveState(skipPush = false) {
         geminiApiKey: STATE.geminiApiKey,
         lastNotifiedTaskId: STATE.lastNotifiedTaskId,
         syncGasUrl: STATE.syncGasUrl,
-        voiceSpeed: STATE.voiceSpeed
+        voiceSpeed: STATE.voiceSpeed,
+        lastSavedDate: STATE.lastSavedDate
     };
     localStorage.setItem("blue_voyage_state", JSON.stringify(toSave));
 
@@ -1636,10 +1655,24 @@ window.spinGacha = function() {
 // 6. 航海時間の監視 ＆ 「わくわく出航呼びかけ」ロジック
 // ==========================================================================
 function checkVoyageSchedules() {
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("ja-JP");
+
+    // 動作中の日付またぎ自動リセット
+    if (STATE.lastSavedDate && STATE.lastSavedDate !== todayStr) {
+        if (STATE.schedules) {
+            STATE.schedules.forEach(s => {
+                s.status = "pending";
+                s.notifiedStages = [];
+            });
+        }
+        STATE.lastSavedDate = todayStr;
+        saveState(); // 同期も一緒に走らせる
+    }
+
     // すでに現在出航中なら、新たな呼びかけはしない
     if (STATE.currentVoyage) return;
 
-    const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     function toMins(timeStr) {
@@ -1750,6 +1783,8 @@ function triggerVoyageNotification(sched, stage = "exact") {
         updateSecretaryMessage("承知しました、船長。5分間錨を下ろしておきます。少し休憩して準備を整えましょう！");
     };
 }
+
+
 
 
 
@@ -2787,7 +2822,8 @@ async function pushStateToCloud() {
         });
         if (response.ok) {
             console.log("クラウドへのデータプッシュに成功しました。");
-            const resData = await response.json();
+            const resText = await response.text(); // text() で受けることでCORS問題を回避
+            const resData = JSON.parse(resText);
             if (resData && resData.status === "success" && resData.data) {
                 applyCloudDataToLocal(resData.data);
             }
@@ -2808,23 +2844,26 @@ async function pullStateFromCloud() {
     showSyncLog("📥 クラウドから最新データを受信中...", "info");
 
     try {
+        // GET ではなく、POST メソッドで action: "read" を送信してCORS/リダイレクト制限をすり抜ける！
         const response = await fetch(STATE.syncGasUrl, {
-            method: "GET",
+            method: "POST",
+            body: JSON.stringify({ action: "read" }),
             redirect: "follow"
         });
         if (response.ok) {
-            const cloudData = await response.json();
+            const resText = await response.text();
+            const resData = JSON.parse(resText);
             
-            if (cloudData) {
-                const data = cloudData.state || cloudData;
-                if (data && data.schedules) {
-                    applyCloudDataToLocal(data);
+            if (resData && resData.status === "success" && resData.data) {
+                const cloudData = resData.data;
+                if (cloudData && cloudData.schedules) {
+                    applyCloudDataToLocal(cloudData);
                     showSyncLog("🟢 同期受信＆反映に成功しました！ (" + new Date().toLocaleTimeString() + ")", "success");
                 } else {
                     showSyncLog("⚠️ 受信データにタスク情報(schedules)がありませんでした。", "error");
                 }
             } else {
-                showSyncLog("⚠️ 受信データが空(null)でした。", "error");
+                showSyncLog("⚠️ 受信データの解析に失敗しました。", "error");
             }
         } else {
             showSyncLog("❌ 受信失敗。ステータスコード: " + response.status, "error");
