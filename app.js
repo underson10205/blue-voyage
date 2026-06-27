@@ -341,6 +341,11 @@ function saveState(skipPush = false) {
     const todayStr = new Date().toLocaleDateString("ja-JP");
     STATE.lastSavedDate = todayStr;
 
+    // 自動同期プッシュを伴う変更の場合のみ、変更時刻を記録して自動プルから保護する
+    if (!skipPush && typeof lastLocalChangeTime !== "undefined") {
+        lastLocalChangeTime = Date.now();
+    }
+
     // タイマーIDなどの非シリアライズオブジェクトは除外して保存
     const toSave = {
         level: STATE.level,
@@ -1796,6 +1801,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2794,8 +2800,12 @@ function showSyncLog(msg, type) {
     }
 }
 
+let isPushing = false; // 送信中ロックフラグ
+let lastLocalChangeTime = 0; // ローカルデータの最終変更時刻
+
 async function pushStateToCloud() {
-    if (!STATE.syncGasUrl) return;
+    if (!STATE.syncGasUrl || isPushing) return;
+    isPushing = true; // 送信中ロック開始
     showSyncLog("📤 同期データをクラウドへ送信中...", "info");
 
     const payload = {
@@ -2834,12 +2844,26 @@ async function pushStateToCloud() {
     } catch (e) {
         showSyncLog("🔴 送信エラー: " + e.toString(), "error");
         console.error("スプレッドシートへのプッシュに失敗しました。", e);
+    } finally {
+        isPushing = false; // 送信中ロック解除
     }
 }
 
 let isSyncing = false;
 async function pullStateFromCloud() {
     if (!STATE.syncGasUrl || isSyncing) return;
+    
+    // 送信中であるか、またはローカル変更から5秒以内の場合はプルを一時ロックする（競合上書き防止）
+    if (isPushing) {
+        console.log("クラウド送信中のため、自動プルを一時ロックします。");
+        return;
+    }
+    const secSinceChange = (Date.now() - lastLocalChangeTime) / 1000;
+    if (secSinceChange < 5) {
+        console.log(`ローカル変更直後(${Math.round(secSinceChange)}秒前)のため、自動プルを一時スキップします。`);
+        return;
+    }
+
     isSyncing = true;
     showSyncLog("📥 クラウドから最新データを受信中...", "info");
 
