@@ -197,7 +197,7 @@ class SoundGenerator {
             osc.type = 'sine';
             // カモメの鳴き声の周波数スイープ (800Hz -> 1500Hz -> 1000Hz)
             osc.frequency.setValueAtTime(800, gNow);
-            osc.frequency.quadraticRampToValueAtTime(1600, gNow + 0.15);
+            osc.frequency.linearRampToValueAtTime(1600, gNow + 0.15);
             osc.frequency.exponentialRampToValueAtTime(600, gNow + 0.35);
 
             gainGull.gain.setValueAtTime(0, gNow);
@@ -217,7 +217,7 @@ class SoundGenerator {
 
             osc.type = 'sine';
             osc.frequency.setValueAtTime(900, gNow);
-            osc.frequency.quadraticRampToValueAtTime(1800, gNow + 0.12);
+            osc.frequency.linearRampToValueAtTime(1800, gNow + 0.12);
             osc.frequency.exponentialRampToValueAtTime(700, gNow + 0.3);
 
             gainGull.gain.setValueAtTime(0, gNow);
@@ -400,10 +400,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // クラウド同期の初期設定
     updateSyncUI();
-    if (STATE.syncGasUrl) {
+    if (typeof setupAutoSyncTimer === "function") {
+        setupAutoSyncTimer();
+    } else if (STATE.syncGasUrl && !STATE.isParentDevice) {
         pullStateFromCloud();
-        // 10秒ごとにバックグラウンドで最新データをプル
-        setInterval(pullStateFromCloud, 10000);
+        window.syncTimerId = setInterval(pullStateFromCloud, 10000);
     }
 
     // iPad/iOS 自動再生制限対策：ウェルカム画面のクリック処理
@@ -1803,6 +1804,8 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2781,11 +2784,21 @@ function applyCloudDataToLocal(cloudData) {
     saveState(true);
 }
 
+let syncLogTimeout = null;
 function showSyncLog(msg, type) {
     const logEl = document.getElementById("sync-log-message");
     if (!logEl) return;
+    
+    if (syncLogTimeout) {
+        clearTimeout(syncLogTimeout);
+        syncLogTimeout = null;
+    }
+
     logEl.style.display = "block";
+    logEl.style.opacity = "1";
+    logEl.style.transition = "";
     logEl.innerText = msg;
+    
     if (type === "success") {
         logEl.style.backgroundColor = "rgba(46, 204, 113, 0.1)";
         logEl.style.color = "#2ecc71";
@@ -2798,6 +2811,17 @@ function showSyncLog(msg, type) {
         logEl.style.backgroundColor = "rgba(52, 152, 219, 0.1)";
         logEl.style.color = "#3498db";
         logEl.style.borderColor = "rgba(52, 152, 219, 0.2)";
+    }
+
+    // 成功・情報のメッセージは4秒後に自動でスッと消す
+    if (type !== "error") {
+        syncLogTimeout = setTimeout(() => {
+            logEl.style.transition = "opacity 0.8s ease";
+            logEl.style.opacity = "0";
+            setTimeout(() => {
+                logEl.style.display = "none";
+            }, 800);
+        }, 4000);
     }
 }
 
