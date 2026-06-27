@@ -1802,6 +1802,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2900,11 +2901,25 @@ async function pullStateFromCloud() {
     }
 }
 
-// 起動時に同期が設定されていれば自動同期を開始
-if (STATE.syncGasUrl) {
-    pullStateFromCloud();
-    window.syncTimerId = setInterval(pullStateFromCloud, 10000);
+// 自動同期タイマーの開始・停止をコントロールするヘルパー
+function setupAutoSyncTimer() {
+    if (window.syncTimerId) {
+        clearInterval(window.syncTimerId);
+        window.syncTimerId = null;
+    }
+    
+    // 同期URLが設定されていて、かつ「子機（子ども用）」の場合のみ、自動同期をオンにする
+    if (STATE.syncGasUrl && !STATE.isParentDevice) {
+        pullStateFromCloud();
+        window.syncTimerId = setInterval(pullStateFromCloud, 10000);
+        console.log("子機モード：10秒ごとの自動同期タイマーを開始しました。");
+    } else {
+        console.log("親機モードまたは同期未設定：自動同期タイマーを無効（停止）にしました。");
+    }
 }
+
+// 起動時に同期が設定されていれば自動同期をセットアップ
+setupAutoSyncTimer();
 
 // 音声読み上げ
 function speakVoice(text) {
