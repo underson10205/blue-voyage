@@ -1760,6 +1760,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2738,8 +2739,29 @@ function applyCloudDataToLocal(cloudData) {
     saveState(true);
 }
 
+function showSyncLog(msg, type) {
+    const logEl = document.getElementById("sync-log-message");
+    if (!logEl) return;
+    logEl.style.display = "block";
+    logEl.innerText = msg;
+    if (type === "success") {
+        logEl.style.backgroundColor = "rgba(46, 204, 113, 0.1)";
+        logEl.style.color = "#2ecc71";
+        logEl.style.borderColor = "rgba(46, 204, 113, 0.2)";
+    } else if (type === "error") {
+        logEl.style.backgroundColor = "rgba(231, 76, 60, 0.1)";
+        logEl.style.color = "#e74c3c";
+        logEl.style.borderColor = "rgba(231, 76, 60, 0.2)";
+    } else {
+        logEl.style.backgroundColor = "rgba(52, 152, 219, 0.1)";
+        logEl.style.color = "#3498db";
+        logEl.style.borderColor = "rgba(52, 152, 219, 0.2)";
+    }
+}
+
 async function pushStateToCloud() {
     if (!STATE.syncGasUrl) return;
+    showSyncLog("📤 同期データをクラウドへ送信中...", "info");
 
     const payload = {
         state: {
@@ -2766,12 +2788,15 @@ async function pushStateToCloud() {
         if (response.ok) {
             console.log("クラウドへのデータプッシュに成功しました。");
             const resData = await response.json();
-            // もし新GASがマージ済みのデータを返してくれた場合は、ローカルに即時反映
             if (resData && resData.status === "success" && resData.data) {
                 applyCloudDataToLocal(resData.data);
             }
+            showSyncLog("🟢 送信＆スマートマージに成功！ (" + new Date().toLocaleTimeString() + ")", "success");
+        } else {
+            showSyncLog("❌ 送信失敗。ステータスコード: " + response.status, "error");
         }
     } catch (e) {
+        showSyncLog("🔴 送信エラー: " + e.toString(), "error");
         console.error("スプレッドシートへのプッシュに失敗しました。", e);
     }
 }
@@ -2780,6 +2805,7 @@ let isSyncing = false;
 async function pullStateFromCloud() {
     if (!STATE.syncGasUrl || isSyncing) return;
     isSyncing = true;
+    showSyncLog("📥 クラウドから最新データを受信中...", "info");
 
     try {
         const response = await fetch(STATE.syncGasUrl, {
@@ -2789,16 +2815,22 @@ async function pullStateFromCloud() {
         if (response.ok) {
             const cloudData = await response.json();
             
-            // クラウドに既存データがある（または空ではない）場合のみ反映
             if (cloudData) {
-                // 旧GASと新GAS両方に対応できるようにフォーマットを吸収
                 const data = cloudData.state || cloudData;
                 if (data && data.schedules) {
                     applyCloudDataToLocal(data);
+                    showSyncLog("🟢 同期受信＆反映に成功しました！ (" + new Date().toLocaleTimeString() + ")", "success");
+                } else {
+                    showSyncLog("⚠️ 受信データにタスク情報(schedules)がありませんでした。", "error");
                 }
+            } else {
+                showSyncLog("⚠️ 受信データが空(null)でした。", "error");
             }
+        } else {
+            showSyncLog("❌ 受信失敗。ステータスコード: " + response.status, "error");
         }
     } catch (e) {
+        showSyncLog("🔴 受信エラー: " + e.toString(), "error");
         console.error("スプレッドシートからのプル同期に失敗しました。", e);
     } finally {
         isSyncing = false;
