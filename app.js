@@ -1806,6 +1806,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2646,6 +2647,19 @@ function mergeArrays(arr1, arr2) {
     return unique;
 }
 
+// ステータスの進行優先度マップ (先祖返り・巻き戻り防止用)
+const STATUS_PRIORITY = {
+    "pending": 1,
+    "pending-approval": 2,
+    "completed": 3
+};
+
+function getHigherStatus(status1, status2) {
+    const p1 = STATUS_PRIORITY[status1] || 1;
+    const p2 = STATUS_PRIORITY[status2] || 1;
+    return p1 >= p2 ? status1 : status2;
+}
+
 // 親機・子機でのスマートマージ（差分結合）ロジック
 function mergeState(local, cloud, isParent) {
     if (!cloud || !cloud.schedules) {
@@ -2657,11 +2671,12 @@ function mergeState(local, cloud, isParent) {
     if (isParent) {
         // 親機（PC）がマージする場合：
         // 1. スケジュール（タスク）リスト自体は親（ローカル）が絶対
-        // ただし、各タスクの「進行ステータス」は、子（クラウド）が更新した進捗を引き継ぐ
+        // ただし、各タスクの進行ステータスは、子（クラウド）のより進んだステータス(承認待ち等)を優先して引き継ぐ
         merged.schedules = local.schedules.map(ls => {
             const cs = cloud.schedules.find(s => s.id === ls.id);
             if (cs) {
-                return { ...ls, status: cs.status }; // 親の設定に、子のステータスをマージ
+                // ローカルのステータスとクラウド（子の進捗）を比較し、より進行しているステータスを優先採用
+                return { ...ls, status: getHigherStatus(ls.status, cs.status) };
             }
             return ls;
         });
@@ -2682,11 +2697,12 @@ function mergeState(local, cloud, isParent) {
     } else {
         // 子機（iPad）がマージする場合：
         // 1. スケジュールリストやご褒美は、親（クラウド）が絶対
-        // ただし、自分が今実行中のタイマーがあれば、そのステータスはローカルを優先
+        // ただし、クラウドのステータスと自分のステータスを比較し、より進んでいる方（完了や実行中）を優先
         merged.schedules = cloud.schedules.map(cs => {
             const ls = local.schedules.find(s => s.id === cs.id);
-            if (ls && local.currentVoyage && local.currentVoyage.id === cs.id) {
-                return { ...cs, status: ls.status }; // 実行中タイマーのステータスを維持
+            if (ls) {
+                // 自分が実行中、または完了（承認待ち）している進捗を、古い親データで上書きされないようにガード
+                return { ...cs, status: getHigherStatus(cs.status, ls.status) };
             }
             return cs;
         });
@@ -2932,13 +2948,13 @@ function setupAutoSyncTimer() {
         window.syncTimerId = null;
     }
     
-    // 同期URLが設定されていて、かつ「子機（子ども用）」の場合のみ、自動同期をオンにする
-    if (STATE.syncGasUrl && !STATE.isParentDevice) {
+    // 同期URLが設定されていれば、親機・子機に関わらず自動同期タイマーをオンにする
+    if (STATE.syncGasUrl) {
         pullStateFromCloud();
         window.syncTimerId = setInterval(pullStateFromCloud, 10000);
-        console.log("子機モード：10秒ごとの自動同期タイマーを開始しました。");
+        console.log("同期タイマー：10秒ごとの自動同期タイマーを開始しました。");
     } else {
-        console.log("親機モードまたは同期未設定：自動同期タイマーを無効（停止）にしました。");
+        console.log("同期未設定：自動同期タイマーを無効（停止）にしました。");
     }
 }
 
