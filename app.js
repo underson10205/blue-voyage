@@ -697,22 +697,26 @@ function initiateDrag(e, piece, countryId, isTouch) {
     const point = isTouch ? e.touches[0] : e;
     const rect = piece.getBoundingClientRect();
     
-    const offsetX = point.clientX - rect.left;
-    const offsetY = point.clientY - rect.top;
+    // 常に指の中心にドラッグピースが来るようにオフセットを設定
+    const offsetX = rect.width / 2;
+    const offsetY = rect.height / 2;
 
     const dragEl = document.createElement("div");
     dragEl.className = piece.className;
     dragEl.innerHTML = piece.innerHTML; // iOS SafariのSVG非表示バグ対策
     dragEl.style.position = "fixed";
-    dragEl.style.left = rect.left + "px";
-    dragEl.style.top = rect.top + "px";
+    
+    // 初期配置も指の中心に（Y軸は少し上へずらす）
+    dragEl.style.left = (point.clientX - offsetX) + "px";
+    dragEl.style.top = (point.clientY - offsetY - 25) + "px";
+    
     dragEl.style.width = rect.width + "px";
     dragEl.style.height = rect.height + "px";
-    dragEl.style.zIndex = "9999";
+    dragEl.style.zIndex = "10000";
     dragEl.style.pointerEvents = "none";
     dragEl.classList.add("dragging");
-    dragEl.style.transform = "scale(1.25)"; // ドラッグ中をつかみやすくするために少し拡大
-    dragEl.style.filter = "drop-shadow(0 10px 20px rgba(0,0,0,0.4))";
+    dragEl.style.transform = "scale(1.35)"; // ドラッグ中をつかみやすくするために少し拡大
+    dragEl.style.filter = "drop-shadow(0 12px 24px rgba(0,0,0,0.45))";
 
     document.body.appendChild(dragEl);
 
@@ -748,8 +752,9 @@ function handleDragMove(e) {
     const point = activeDrag.isTouch ? e.touches[0] : e;
     const dragEl = activeDrag.element;
 
+    // 指の真下ではなく、少し上(25px上)にピースを表示して指で隠れないようにする
     const newLeft = point.clientX - activeDrag.offsetX;
-    const newTop = point.clientY - activeDrag.offsetY;
+    const newTop = point.clientY - activeDrag.offsetY - 25;
     dragEl.style.left = newLeft + "px";
     dragEl.style.top = newTop + "px";
 
@@ -767,10 +772,10 @@ function handleDragMove(e) {
 
             const pieceRect = dragEl.getBoundingClientRect();
             const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-            const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+            const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25;
 
             const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-            const snapRadius = Math.max(35, Math.min(rect.width, rect.height) * 0.6);
+            const snapRadius = Math.max(65, Math.min(rect.width, rect.height) * 0.85);
 
             if (dist < snapRadius) {
                 targetPath.classList.add("dragover");
@@ -858,10 +863,10 @@ function handleDragEnd(e) {
 
                 const pieceRect = dragEl.getBoundingClientRect();
                 const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-                const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+                const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25; // 25pxのY軸オフセットを補正
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-                const snapRadius = Math.max(35, Math.min(rect.width, rect.height) * 0.6);
+                const snapRadius = Math.max(65, Math.min(rect.width, rect.height) * 0.85); // 判定範囲を甘く(65px)
 
                 if (dist < snapRadius) {
                     snapped = true;
@@ -878,11 +883,11 @@ function handleDragEnd(e) {
 
                 const pieceRect = dragEl.getBoundingClientRect();
                 const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-                const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+                const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25; // 25pxのY軸オフセットを補正
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
 
-                if (dist < 35) {
+                if (dist < 55) { // ピン型も判定を甘く(55px)
                     snapped = true;
                 }
             }
@@ -1793,6 +1798,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
         updateSecretaryMessage("承知しました、船長。5分間錨を下ろしておきます。少し休憩して準備を整えましょう！");
     };
 }
+
 
 
 
