@@ -1384,7 +1384,17 @@ window.approveTask = function(id) {
         }
 
         saveState();
-        sound.playFanfare();
+
+        // 親機（PC）の場合は、自分で承認したので音やアラートは不要。子機（iPad）側でのみ演出する
+        if (!STATE.isParentDevice) {
+            sound.playFanfare();
+            const country = COUNTRIES_DATA.find(c => c.id === task.rewardCountryId) || { name: "新しい国" };
+            let msg = `🎉 蒼君の頑張りを承認しました！\n『${country.name}』のパズルピースがアンロックされました！`;
+            if (leveledUp) {
+                msg += `\n🌟 さらに、蒼君の航海レベルが【レベル ${STATE.level}】にアップしました！`;
+            }
+            alert(msg);
+        }
 
         // 画面の更新
         renderHeader();
@@ -1392,14 +1402,6 @@ window.approveTask = function(id) {
         renderWorldMap();
         renderDiscoveredCountries();
         renderParentApprovalList();
-
-        const country = COUNTRIES_DATA.find(c => c.id === task.rewardCountryId) || { name: "新しい国" };
-        
-        let msg = `🎉 蒼君の頑張りを承認しました！\n『${country.name}』のパズルピースがアンロックされました！`;
-        if (leveledUp) {
-            msg += `\n🌟 さらに、蒼君の航海レベルが【レベル ${STATE.level}】にアップしました！`;
-        }
-        alert(msg);
 
         // 秘書からのメッセージ更新
         const secMsg = leveledUp 
@@ -1798,6 +1800,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
         updateSecretaryMessage("承知しました、船長。5分間錨を下ろしておきます。少し休憩して準備を整えましょう！");
     };
 }
+
 
 
 
@@ -2996,7 +2999,16 @@ setupAutoSyncTimer();
 function speakVoice(text) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel(); // 既存の音声をクリア
-        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // 漢字の「君（きみ）」という誤読を防ぎ、「あおいくん」と綺麗に発音させるための平仮名置換
+        let cleanText = text
+            .replace(/あおい君/g, "あおいくん")
+            .replace(/蒼君/g, "あおいくん")
+            .replace(/あおい船長/g, "あおいせんちょう")
+            .replace(/蒼船長/g, "あおいせんちょう")
+            .replace(/きみ/g, "くん"); // 一般的な誤読対策
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'ja-JP';
         utterance.rate = STATE.voiceSpeed || 0.95; // 読み上げ速度
         utterance.pitch = 1.05; // 明るめのトーン
