@@ -1821,6 +1821,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2699,11 +2700,12 @@ function mergeState(local, cloud, isParent) {
         merged.shopRewards = local.shopRewards;
 
         // 3. 子の進捗データ（コイン、XP、レベル、パズル、創作キャラ、交換申請）はクラウド（子）を引き継ぐ
+        // ただし、親の承認アクションによってアンロックされた国を消失しないよう、アンロック・配置国は合算マージする
         merged.level = cloud.level;
         merged.xp = cloud.xp;
         merged.coins = cloud.coins;
-        merged.unlockedCountries = cloud.unlockedCountries;
-        merged.placedCountries = cloud.placedCountries;
+        merged.unlockedCountries = mergeArrays(local.unlockedCountries, cloud.unlockedCountries);
+        merged.placedCountries = mergeArrays(local.placedCountries, cloud.placedCountries);
         merged.createdCharacters = cloud.createdCharacters;
         merged.rewardExchanges = cloud.rewardExchanges;
         merged.pendingApprovals = cloud.pendingApprovals;
