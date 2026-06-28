@@ -700,7 +700,9 @@ function initiateDrag(e, piece, countryId, isTouch) {
     const offsetX = point.clientX - rect.left;
     const offsetY = point.clientY - rect.top;
 
-    const dragEl = piece.cloneNode(true);
+    const dragEl = document.createElement("div");
+    dragEl.className = piece.className;
+    dragEl.innerHTML = piece.innerHTML; // iOS SafariのSVG非表示バグ対策
     dragEl.style.position = "fixed";
     dragEl.style.left = rect.left + "px";
     dragEl.style.top = rect.top + "px";
@@ -709,6 +711,8 @@ function initiateDrag(e, piece, countryId, isTouch) {
     dragEl.style.zIndex = "9999";
     dragEl.style.pointerEvents = "none";
     dragEl.classList.add("dragging");
+    dragEl.style.transform = "scale(1.25)"; // ドラッグ中をつかみやすくするために少し拡大
+    dragEl.style.filter = "drop-shadow(0 10px 20px rgba(0,0,0,0.4))";
 
     document.body.appendChild(dragEl);
 
@@ -1807,6 +1811,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
 
 
 
+
 // ==========================================================================
 // 7. AI家庭教師「AIコンパス」（Gemini API連携 ＆ プロンプト設計）
 // ==========================================================================
@@ -2771,6 +2776,18 @@ function updateSyncUI() {
 function applyCloudDataToLocal(cloudData) {
     if (!cloudData) return;
 
+    // 承認されたタスク（サインをもらったタスク）を検知するための比較用配列
+    const newlyApprovedTasks = [];
+    if (STATE.schedules && cloudData.schedules && !STATE.isParentDevice) {
+        cloudData.schedules.forEach(cs => {
+            const ls = STATE.schedules.find(s => s.id === cs.id);
+            // ローカルが「承認待ち」で、クラウドが「完了（承認済み）」になった瞬間を検知！
+            if (ls && ls.status === "pending-approval" && cs.status === "completed") {
+                newlyApprovedTasks.push(cs);
+            }
+        });
+    }
+
     // クラウドデータとローカルデータをスマートマージする
     const merged = mergeState(STATE, cloudData, STATE.isParentDevice);
 
@@ -2795,6 +2812,14 @@ function applyCloudDataToLocal(cloudData) {
     renderParentRewardsList();
     renderParentExchangeList();
     renderShopGoods();
+
+    // 新しく承認されたタスクがあればお祝い演出を起動！
+    if (newlyApprovedTasks.length > 0) {
+        newlyApprovedTasks.forEach(task => {
+            const country = COUNTRIES_DATA.find(c => c.id === task.rewardCountryId) || { name: "お楽しみ（ランダム）", flag: "🎲" };
+            showVoyageApprovalModal(task, country);
+        });
+    }
 
     // ローカルストレージにのみ保存
     saveState(true);
@@ -2988,5 +3013,110 @@ function speakVoice(text) {
 function stopSpeaking() {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
+    }
+}
+
+// 親からの入港承認（タスク承認）お祝いモーダル（子ども画面用）
+function showVoyageApprovalModal(task, country) {
+    const flagUrl = getCountryFlagUrl(country);
+    
+    // すでに同じタスクのモーダルがあれば重複表示しない
+    if (document.getElementById("approved-modal-" + task.id)) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "approved-modal-" + task.id;
+    overlay.className = "approval-celebration-overlay";
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(10, 20, 40, 0.8)";
+    overlay.style.backdropFilter = "blur(8px)";
+    overlay.style.display = "flex";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.zIndex = "10000";
+    overlay.style.animation = "fadeIn 0.5s ease forwards";
+
+    const content = document.createElement("div");
+    content.className = "approval-celebration-card";
+    content.style.backgroundColor = "rgba(255, 255, 255, 0.95)";
+    content.style.borderRadius = "24px";
+    content.style.padding = "30px 40px";
+    content.style.width = "90%";
+    content.style.maxWidth = "440px";
+    content.style.textAlign = "center";
+    content.style.boxShadow = "0 20px 50px rgba(0, 0, 0, 0.35)";
+    content.style.border = "2.5px solid #d4af35";
+    content.style.transform = "scale(0.8)";
+    content.style.opacity = "0";
+    content.style.animation = "popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
+
+    // アニメーション用のCSSを動的に追加
+    if (!document.getElementById("celebration-styles")) {
+        const style = document.createElement("style");
+        style.id = "celebration-styles";
+        style.innerHTML = `
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+        `;
+        document.head.appendChild(style);
+    }
+
+    content.innerHTML = `
+        <div style="font-size: 4rem; margin-bottom: 12px; animation: bounce 0.6s infinite alternate;">🎉</div>
+        <h2 style="color: #1a2a6c; margin-top: 0; margin-bottom: 8px; font-weight: 800; font-size: 1.4rem; letter-spacing: -0.5px;">入港が承認されました！</h2>
+        <p style="color: #444; font-size: 0.9rem; line-height: 1.5; margin-bottom: 20px;">
+            あおい船長、やりました！<br>
+            親御さんから『<strong>${task.title}</strong>』の入港サインが届きました！
+        </p>
+        <div style="background: linear-gradient(135deg, #1a2a6c, #275d8c); border-radius: 16px; padding: 18px; color: #fff; margin-bottom: 25px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.25);">
+            <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #a5d8ff; margin-bottom: 6px;">アンロックした国</div>
+            <img src="${flagUrl}" style="width: 76px; height: 46px; object-fit: cover; border-radius: 4px; border: 2px solid #fff; box-shadow: 0 4px 8px rgba(0,0,0,0.3); margin-bottom: 8px;" />
+            <div style="font-size: 1.25rem; font-weight: 800; text-shadow: 0 1.5px 3px rgba(0,0,0,0.3);">${country.name}</div>
+            <div style="font-size: 0.75rem; color: #d0ebff; margin-top: 3px;">首都: ${country.capital || "---"}</div>
+        </div>
+        <button id="btn-close-approval-modal-${task.id}" style="background: linear-gradient(to right, #f2a900, #d4af35); color: #fff; border: none; padding: 12px 30px; font-size: 0.95rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 4px 15px rgba(212,175,53,0.4); outline: none; transition: transform 0.15s ease;">
+            地図にはめに行く！
+        </button>
+    `;
+
+    overlay.appendChild(content);
+    document.body.appendChild(overlay);
+
+    // 音声でのアナウンス
+    speakVoice(`入港承認おめでとう！お父さんお母さんからサインをもらったよ！${country.name}のパズルをはめに行こう！`);
+    sound.playFanfare(); // ファンファーレ再生
+
+    // ボタンのクリック処理
+    const closeBtn = document.getElementById("btn-close-approval-modal-" + task.id);
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            overlay.style.transition = "opacity 0.3s ease";
+            overlay.style.opacity = "0";
+            setTimeout(() => {
+                overlay.remove();
+                
+                // 世界地図タブを開く！
+                const mapTab = document.querySelector('[data-tab="world-map"]');
+                if (mapTab) {
+                    mapTab.click();
+                    
+                    // パズルサブタブも開く
+                    const puzzleSubtab = document.querySelector('[data-subtab="puzzle"]');
+                    if (puzzleSubtab) {
+                        puzzleSubtab.click();
+                    }
+                }
+            }, 300);
+        });
+        
+        // ホバー/タップ時のスケールアニメーション
+        closeBtn.addEventListener("touchstart", () => { closeBtn.style.transform = "scale(0.95)"; });
+        closeBtn.addEventListener("touchend", () => { closeBtn.style.transform = "scale(1)"; });
+        closeBtn.addEventListener("mousedown", () => { closeBtn.style.transform = "scale(0.95)"; });
+        closeBtn.addEventListener("mouseup", () => { closeBtn.style.transform = "scale(1)"; });
     }
 }
