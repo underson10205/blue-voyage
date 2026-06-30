@@ -17,9 +17,9 @@ const DEFAULT_REWARDS = [
 
 // デフォルトの航海スケジュール
 const DEFAULT_SCHEDULES = [
-    { id: "sched-1", title: "学校の宿題 (数学・英語など)", startTime: "15:00", endTime: "15:45", rewardCountryId: "france", status: "pending" },
-    { id: "sched-2", title: "塾・家庭学習 (試験勉強)", startTime: "16:00", endTime: "16:45", rewardCountryId: "egypt", status: "pending" },
-    { id: "sched-3", title: "自主学習 (世界の国調べ/タイピングなど)", startTime: "17:00", endTime: "17:30", rewardCountryId: "india", status: "pending" }
+    { id: "sched-1", title: "学校の宿題 (数学・英語など)", startTime: "15:00", endTime: "15:45", rewardCountryId: "france", rewardCoins: 100, status: "pending" },
+    { id: "sched-2", title: "塾・家庭学習 (試験勉強)", startTime: "16:00", endTime: "16:45", rewardCountryId: "egypt", rewardCoins: 100, status: "pending" },
+    { id: "sched-3", title: "自主学習 (世界の国調べ/タイピングなど)", startTime: "17:00", endTime: "17:30", rewardCountryId: "india", rewardCoins: 100, status: "pending" }
 ];
 
 // AI家庭教師用：APIキー未設定時のモック回答データベース
@@ -752,8 +752,9 @@ function handleDragMove(e) {
     const point = activeDrag.isTouch ? e.touches[0] : e;
     const dragEl = activeDrag.element;
 
+    // 指の真下ではなく、少し上(25px上)にピースを表示して指で隠れないようにする
     const newLeft = point.clientX - activeDrag.offsetX;
-    const newTop = point.clientY - activeDrag.offsetY - 25; // 指で隠れないように25px上に表示するオフセットを復元
+    const newTop = point.clientY - activeDrag.offsetY - 25;
     dragEl.style.left = newLeft + "px";
     dragEl.style.top = newTop + "px";
 
@@ -780,7 +781,7 @@ function handleDragMove(e) {
             const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
             const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-            const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.1); // 判定範囲をさらに甘く
+            const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.15); // 判定範囲をさらに甘く
 
             if (dist < snapRadius) {
                 targetPath.classList.add("dragover");
@@ -802,11 +803,11 @@ function handleDragMove(e) {
 
             const pieceRect = dragEl.getBoundingClientRect();
             const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-            const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+            const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
             const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
 
-            if (dist < 35) {
+            if (dist < 65) { // ピン型も判定を甘く
                 target.classList.add("dragover");
             } else {
                 target.classList.remove("dragover");
@@ -829,10 +830,6 @@ function handleDragEnd(e) {
     // もしドラッグされずにその場で指/マウスを離した（タップされた）場合
     const isTap = !lastDragWasReal;
 
-    // 後処理
-    dragEl.remove();
-    originalPiece.style.opacity = "1.0";
-
     if (activeDrag.isTouch) {
         window.removeEventListener("touchmove", handleDragMove);
         window.removeEventListener("touchend", handleDragEnd);
@@ -842,6 +839,9 @@ function handleDragEnd(e) {
     }
 
     if (isTap) {
+        // 後処理 (タップ時)
+        dragEl.remove();
+        originalPiece.style.opacity = "1.0";
         if (country) {
             showPlaceConfirmModal(country);
         }
@@ -856,6 +856,7 @@ function handleDragEnd(e) {
         return;
     }
 
+    // 吸着判定を実行（この時点では dragEl はまだDOMに存在するため、正確なBoundingClientRectが取得できる！）
     if (country) {
         if (country.iso && mapSvg) {
             const targetPath = mapSvg.querySelector("#" + country.iso);
@@ -877,7 +878,7 @@ function handleDragEnd(e) {
                 const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-                const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.1); // 判定範囲を甘く(75px)
+                const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.15); // 判定範囲をさらに甘く(75px)
 
                 if (dist < snapRadius) {
                     snapped = true;
@@ -905,6 +906,10 @@ function handleDragEnd(e) {
         }
     }
 
+    // 判定が完了したので、ここでドラッグ要素をDOMから削除する！
+    dragEl.remove();
+    originalPiece.style.opacity = "1.0";
+
     if (snapped) {
         if (!STATE.placedCountries.includes(countryId)) {
             STATE.placedCountries.push(countryId);
@@ -919,7 +924,7 @@ function handleDragEnd(e) {
         checkAllPuzzlesCompleted();
         renderWorldMap();
     } else {
-        renderWorldMap();
+        // 吸着しなかったら何もしない
     }
 
     activeDrag = {
@@ -2814,13 +2819,20 @@ function mergeState(local, cloud, isParent) {
         // 親機（PC）がマージする場合：
         // 1. スケジュール（タスク）リスト自体は親（ローカル）が絶対
         // ただし、各タスクの進行ステータスは、子（クラウド）のより進んだステータス(承認待ち等)を優先して引き継ぐ
+        // 同時に、rewardCoinsが消失しないようにしっかりとマージ・フォールバックする
         merged.schedules = local.schedules.map(ls => {
             const cs = cloud.schedules.find(s => s.id === ls.id);
             if (cs) {
-                // ローカルのステータスとクラウド（子の進捗）を比較し、より進行しているステータスを優先採用
-                return { ...ls, status: getHigherStatus(ls.status, cs.status) };
+                return { 
+                    ...ls, 
+                    rewardCoins: ls.rewardCoins !== undefined ? ls.rewardCoins : (cs.rewardCoins !== undefined ? cs.rewardCoins : 100),
+                    status: getHigherStatus(ls.status, cs.status) 
+                };
             }
-            return ls;
+            return {
+                ...ls,
+                rewardCoins: ls.rewardCoins !== undefined ? ls.rewardCoins : 100
+            };
         });
 
         // 2. ご褒美ショップリストは親（ローカル）が絶対
@@ -2841,13 +2853,20 @@ function mergeState(local, cloud, isParent) {
         // 子機（iPad）がマージする場合：
         // 1. スケジュールリストやご褒美は、親（クラウド）が絶対
         // ただし、クラウドのステータスと自分のステータスを比較し、より進んでいる方（完了や実行中）を優先
+        // 同時に、親が設定したカスタムrewardCoinsが欠落しないようにマージする
         merged.schedules = cloud.schedules.map(cs => {
             const ls = local.schedules.find(s => s.id === cs.id);
             if (ls) {
-                // 自分が実行中、または完了（承認待ち）している進捗を、古い親データで上書きされないようにガード
-                return { ...cs, status: getHigherStatus(cs.status, ls.status) };
+                return { 
+                    ...cs, 
+                    rewardCoins: cs.rewardCoins !== undefined ? cs.rewardCoins : (ls.rewardCoins !== undefined ? ls.rewardCoins : 100),
+                    status: getHigherStatus(cs.status, ls.status) 
+                };
             }
-            return cs;
+            return {
+                ...cs,
+                rewardCoins: cs.rewardCoins !== undefined ? cs.rewardCoins : 100
+            };
         });
         merged.shopRewards = cloud.shopRewards;
 
