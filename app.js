@@ -3015,9 +3015,25 @@ function mergeState(local, cloud, isParent) {
 
         // 創作キャラ、交換申請などのコレクションは消さずに合算マージ (ID重複を防止！)
         merged.createdCharacters = mergeObjectArrays(local.createdCharacters, cloud.createdCharacters, "name");
-        merged.rewardExchanges = mergeObjectArrays(local.rewardExchanges, cloud.rewardExchanges, "id");
         merged.pendingApprovals = mergeObjectArrays(local.pendingApprovals, cloud.pendingApprovals, "id");
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
+
+        // 🎁 ご褒美交換リストは、親（クラウド）が完了(completed)したステータスを優先的にマージして、承認完了を確実に引き継ぐ！
+        merged.rewardExchanges = cloud.rewardExchanges.map(ce => {
+            const le = local.rewardExchanges.find(e => e.id === ce.id);
+            if (le) {
+                return {
+                    ...le,
+                    status: ce.status === "completed" ? "completed" : le.status
+                };
+            }
+            return ce;
+        });
+        // まだクラウドに反映されていないiPadローカル側だけの新規申請（pending）もマージで消えないように合算
+        const localOnlyPendingEx = (local.rewardExchanges || []).filter(le => {
+            return !cloud.rewardExchanges.some(ce => ce.id === le.id);
+        });
+        merged.rewardExchanges = merged.rewardExchanges.concat(localOnlyPendingEx);
     }
 
     return merged;
@@ -3583,7 +3599,7 @@ function showExchangeApprovalModal(exchange) {
         <div style="background: rgba(241, 196, 15, 0.15); border: 2px dashed #f1c40f; border-radius: 20px; padding: 20px; margin-bottom: 25px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);">
             <div style="font-size: 0.75rem; color: #7f8c8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">手に入れたご褒美</div>
             <div style="font-size: 1.35rem; color: #2c3e50; font-weight: 800; letter-spacing: -0.5px;">✨ ${exchange.name} ✨</div>
-            <div style="font-size: 0.75rem; color: #95a5a6; margin-top: 5px;">(💰 ${exchange.coins}ゴールド と引き換え)</div>
+            <div style="font-size: 0.75rem; color: #95a5a6; margin-top: 5px;">(💰 ${exchange.price !== undefined ? exchange.price : (exchange.coins !== undefined ? exchange.coins : 100)}ゴールド と引き換え)</div>
         </div>
 
         <button id="btn-close-exchange-modal-${exchange.id}" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #fff; border: none; padding: 14px 40px; font-size: 1.05rem; font-weight: 800; border-radius: 50px; cursor: pointer; box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4); outline: none; transition: transform 0.15s ease, box-shadow 0.15s ease; width: 100%;">
@@ -3600,6 +3616,13 @@ function showExchangeApprovalModal(exchange) {
     const closeBtn = document.getElementById("btn-close-exchange-modal-" + exchange.id);
     if (closeBtn) {
         closeBtn.addEventListener("click", () => {
+            // 🪙 モーダルを閉じた瞬間に、ローカルのステータスを確実に completed にして即座に同期プッシュ！
+            const localEx = STATE.rewardExchanges.find(e => e.id === exchange.id);
+            if (localEx) {
+                localEx.status = "completed";
+            }
+            saveState(); // 同期プッシュを実行してクラウドと完全に状態を同期！
+
             overlay.style.transition = "opacity 0.3s ease";
             overlay.style.opacity = "0";
             setTimeout(() => { overlay.remove(); }, 300);
