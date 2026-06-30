@@ -505,7 +505,7 @@ function renderTimeline() {
                     </div>
                 </div>
                 <div class="timeline-reward">
-                    <span>報酬: ${country.flag} ${country.name}</span>
+                    <span>報酬: ${country.flag} ${country.name} (💰 ${sched.rewardCoins !== undefined ? sched.rewardCoins : 100}G)</span>
                 </div>
             </div>
         `;
@@ -752,9 +752,8 @@ function handleDragMove(e) {
     const point = activeDrag.isTouch ? e.touches[0] : e;
     const dragEl = activeDrag.element;
 
-    // 指の真下ではなく、少し上(25px上)にピースを表示して指で隠れないようにする
     const newLeft = point.clientX - activeDrag.offsetX;
-    const newTop = point.clientY - activeDrag.offsetY - 25;
+    const newTop = point.clientY - activeDrag.offsetY - 25; // 指で隠れないように25px上に表示するオフセットを復元
     dragEl.style.left = newLeft + "px";
     dragEl.style.top = newTop + "px";
 
@@ -766,16 +765,22 @@ function handleDragMove(e) {
     if (country.iso && mapSvg) {
         const targetPath = mapSvg.querySelector("#" + country.iso);
         if (targetPath) {
-            const rect = targetPath.getBoundingClientRect();
+            // グループ（g）タグの場合は、メインの本土（mainlandクラス）または最初のpath要素を優先取得してズレを防止！
+            let rectTarget = targetPath;
+            if (targetPath.tagName.toLowerCase() === "g") {
+                rectTarget = targetPath.querySelector(".mainland") || targetPath.querySelector("path") || targetPath;
+            }
+
+            const rect = rectTarget.getBoundingClientRect();
             const targetCenterX = rect.left + rect.width / 2;
             const targetCenterY = rect.top + rect.height / 2;
 
             const pieceRect = dragEl.getBoundingClientRect();
             const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-            const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+            const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
             const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-            const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.0);
+            const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.1); // 判定範囲をさらに甘く
 
             if (dist < snapRadius) {
                 targetPath.classList.add("dragover");
@@ -857,7 +862,13 @@ function handleDragEnd(e) {
             if (targetPath) {
                 targetPath.classList.remove("dragover"); // dragoverを解除
 
-                const rect = targetPath.getBoundingClientRect();
+                // グループ（g）タグの場合は、メインの本土（mainlandクラス）または最初のpath要素を優先取得してズレを防止！
+                let rectTarget = targetPath;
+                if (targetPath.tagName.toLowerCase() === "g") {
+                    rectTarget = targetPath.querySelector(".mainland") || targetPath.querySelector("path") || targetPath;
+                }
+
+                const rect = rectTarget.getBoundingClientRect();
                 const targetCenterX = rect.left + rect.width / 2;
                 const targetCenterY = rect.top + rect.height / 2;
 
@@ -866,7 +877,7 @@ function handleDragEnd(e) {
                 const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-                const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.0); // 判定範囲を甘く(75px)
+                const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.1); // 判定範囲を甘く(75px)
 
                 if (dist < snapRadius) {
                     snapped = true;
@@ -1125,6 +1136,14 @@ function renderCreatedCharacters() {
     STATE.createdCharacters.forEach((char, index) => {
         const item = document.createElement("div");
         item.className = "char-gallery-item";
+        item.style.display = "flex";
+        item.style.justifyContent = "space-between";
+        item.style.alignItems = "center";
+        item.style.padding = "12px 15px";
+        item.style.marginBottom = "10px";
+        item.style.background = "#fff";
+        item.style.borderRadius = "12px";
+        item.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
 
         let badgeClass = "toilet";
         let typeName = "スキビディ";
@@ -1136,14 +1155,21 @@ function renderCreatedCharacters() {
             typeName = "お宝";
         }
 
+        const imgTag = char.imageUrl 
+            ? `<img src="${char.imageUrl}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--gold-brass); flex-shrink: 0;" alt="${char.name}" />`
+            : `<div style="width: 50px; height: 50px; background: rgba(0,0,0,0.05); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">👾</div>`;
+
         item.innerHTML = `
-            <div class="char-item-info">
-                <h4>${char.name}</h4>
-                <p>${char.desc || '説明なし'}</p>
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                ${imgTag}
+                <div class="char-item-info" style="text-align: left;">
+                    <h4 style="margin: 0; font-size: 0.95rem; color: var(--navy-dark);">${char.name}</h4>
+                    <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">${char.desc || '説明なし'}</p>
+                </div>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span class="char-badge ${badgeClass}">${typeName}</span>
-                <button class="btn-action btn-danger btn-sm" onclick="deleteCharacter(${index})" style="padding: 2px 6px; font-size:0.65rem;">削除</button>
+            <div style="display:flex; flex-direction: column; align-items:flex-end; gap:6px; margin-left: 10px;">
+                <span class="char-badge ${badgeClass}" style="margin: 0;">${typeName}</span>
+                <button class="btn-action btn-danger btn-sm" onclick="deleteCharacter(${index})" style="padding: 2px 6px; font-size:0.6rem;">削除</button>
             </div>
         `;
         galleryEl.appendChild(item);
@@ -1240,10 +1266,11 @@ function renderParentSchedule() {
         else if (sched.status === "pending-approval") statusText = "承認待ち";
         else if (STATE.currentVoyage && STATE.currentVoyage.id === sched.id) statusText = "航海中";
 
+        const coins = sched.rewardCoins !== undefined ? sched.rewardCoins : 100;
         tr.innerHTML = `
             <td><strong>${sched.startTime} 〜 ${sched.endTime}</strong></td>
             <td>${sched.title}</td>
-            <td>${country.flag} ${country.name}</td>
+            <td>${country.flag} ${country.name} (💰 ${coins}G)</td>
             <td>
                 <button class="btn-action btn-secondary btn-sm" style="margin-right: 5px; background: var(--gold-dark); border-color: var(--gold-dark); color: white;" onclick="editSchedule('${sched.id}')">
                     <i data-lucide="pencil" style="width:12px; height:12px; margin-right:3px;"></i> 編集
@@ -1266,6 +1293,11 @@ window.editSchedule = function(id) {
     document.getElementById("sched-start").value = sched.startTime;
     document.getElementById("sched-end").value = sched.endTime;
     document.getElementById("sched-reward").value = sched.rewardCountryId;
+    
+    const coinsInput = document.getElementById("sched-reward-coins");
+    if (coinsInput) {
+        coinsInput.value = sched.rewardCoins !== undefined ? sched.rewardCoins : 100;
+    }
 
     STATE.editingScheduleId = id;
 
@@ -1332,10 +1364,11 @@ function renderParentApprovalList() {
             ? { name: "ランダム（お楽しみ！）", flag: "🎲" }
             : (COUNTRIES_DATA.find(c => c.id === sched.rewardCountryId) || { name: "未知の国", flag: "🧭" });
 
+        const coins = sched.rewardCoins !== undefined ? sched.rewardCoins : 100;
         item.innerHTML = `
             <div class="approval-info">
                 <h4>蒼君が「${sched.title}」を完了しました！</h4>
-                <p>報酬アンロック: ${country.flag} ${country.name} (＋100ゴールド、＋50 XP)</p>
+                <p>報酬アンロック: ${country.flag} ${country.name} (＋${coins}ゴールド、＋50 XP)</p>
             </div>
             <button class="btn-action btn-success" onclick="approveTask('${sched.id}')">
                 <i data-lucide="check-circle"></i> 入港を承認する！
@@ -1353,8 +1386,9 @@ window.approveTask = function(id) {
         const task = STATE.schedules[taskIndex];
         task.status = "completed";
 
-        // 報酬付与
-        STATE.coins += 100;
+        // 報酬付与 (カスタム報酬ゴールドに対応)
+        const coinsToAward = task.rewardCoins !== undefined ? task.rewardCoins : 100;
+        STATE.coins += coinsToAward;
         STATE.xp += 50;
 
         // レベルアップ判定
@@ -1409,6 +1443,90 @@ window.approveTask = function(id) {
             : `お見事です、船長！無事に入港許可が下り、${country.name}のパズルが手に入りました。次の航海の準備を始めましょう！`;
         updateSecretaryMessage(secMsg);
     }
+};
+
+window.spinGacha = function() {
+    if (STATE.coins < 100) {
+        alert("🪙 ガチャには 100ゴールド 必要です！\n宿題をクリアしてゴールドを貯めましょう！");
+        return;
+    }
+
+    const btn = document.getElementById("btn-spin-gacha");
+    const machine = document.getElementById("gacha-machine");
+
+    btn.disabled = true;
+    if (machine) machine.classList.add("spinning");
+
+    sound.playGacha(); // ガラガラ効果音
+
+    setTimeout(() => {
+        if (machine) machine.classList.remove("spinning");
+        btn.disabled = false;
+
+        // ガチャ結果の生成
+        STATE.coins -= 100;
+
+        // 蒼君の興味のある要素をランダムに組み合わせる
+        const prefixes = ["ゴールド", "ギャラクシー", "シャドー", "タイタン", "カイロ", "パリ", "ナポレオン", "コソボ", "台湾", "グリーンランド"];
+        const middle = ["トイレ", "カメラマン", "スピーカー", "テレビマン", "パズル", "羅針盤"];
+        const suffixes = ["Mod", "チップ", "コア", "パーツ", "人形"];
+
+        const randomName = 
+            prefixes[Math.floor(Math.random() * prefixes.length)] + "・" +
+            middle[Math.floor(Math.random() * middle.length)] + " " +
+            suffixes[Math.floor(Math.random() * suffixes.length)];
+
+        // レア度の判定
+        const rand = Math.random() * 100;
+        let rarity = "toilet"; // デフォルト
+        let rarityName = "レア (R)";
+        let desc = "大航海で集めた素材でクラフトしたModアイテム。";
+        let colorTheme = "#3498db"; // 青
+
+        if (rand < 3) {
+            rarity = "item"; // ゴールドバッジ
+            rarityName = "ウルトラレア (UR) 🌟";
+            desc = "★★★ 伝説級の超ウルトラお宝Mod！凄まじいクリエイティビティの結晶。";
+            colorTheme = "linear-gradient(135deg, #f1c40f, #f39c12, #e74c3c)"; // レインボー/ゴールド
+        } else if (rand < 20) {
+            rarity = "custom-country"; // ブラウンバッジ
+            rarityName = "スーパーレア (SR) ✨";
+            desc = "★★ 強力なシミュレーション効果を持つスーパーMod。";
+            colorTheme = "linear-gradient(135deg, #e67e22, #d35400)"; // オレンジ/ゴールド
+        }
+
+        // AIイラストのプロンプトを構築してURLを設定！
+        let engRarity = rarity === "item" ? "legendary golden master" : rarity === "custom-country" ? "epic powerful" : "rare creative";
+        let promptText = `chibi anime style character icon of ${randomName}, Skibidi type, 3d game mod asset, ${engRarity}, highly detailed, white background`;
+        const gachaImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=300&height=300&nologo=true`;
+
+        const newChar = {
+            name: randomName,
+            desc: `${rarityName} - ${desc}`,
+            type: rarity,
+            imageUrl: gachaImgUrl
+        };
+
+        STATE.createdCharacters.push(newChar);
+        saveState();
+
+        sound.playFanfare(); // ファンファーレ
+
+        renderHeader();
+        renderCreatedCharacters();
+        
+        // 交易所内の所持ゴールド表示も連動更新
+        const goldSpan = document.getElementById("shop-current-gold");
+        if (goldSpan) {
+            goldSpan.innerText = STATE.coins;
+        }
+
+        // 豪華お祝いモーダルの表示！
+        showGachaRewardModal(newChar, colorTheme);
+
+        updateSecretaryMessage(`ガチャから『${randomName}』が出現しました！素晴らしいお宝ですね、船長！`);
+
+    }, 1500); // 1.5秒ガラガラ回る
 };
 
 // AIキーバッジの表示更新
@@ -1806,6 +1924,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
         updateSecretaryMessage("承知しました、船長。5分間錨を下ろしておきます。少し休憩して準備を整えましょう！");
     };
 }
+
 
 
 
@@ -3141,6 +3260,104 @@ function showVoyageApprovalModal(task, country) {
         });
         
         // ホバー/タップ時のスケールアニメーション
+        closeBtn.addEventListener("touchstart", () => { closeBtn.style.transform = "scale(0.95)"; });
+        closeBtn.addEventListener("touchend", () => { closeBtn.style.transform = "scale(1)"; });
+        closeBtn.addEventListener("mousedown", () => { closeBtn.style.transform = "scale(0.95)"; });
+        closeBtn.addEventListener("mouseup", () => { closeBtn.style.transform = "scale(1)"; });
+    }
+}
+
+// ガチャ結果お祝いモーダルの表示（AIイラスト付き）
+function showGachaRewardModal(char, colorTheme) {
+    const existing = document.getElementById("gacha-reward-modal");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "gacha-reward-modal";
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(10, 15, 30, 0.85)";
+    overlay.style.backdropFilter = "blur(12px)";
+    overlay.style.display = "flex";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.zIndex = "20000";
+    overlay.style.animation = "fadeIn 0.4s ease forwards";
+
+    const card = document.createElement("div");
+    card.style.background = "#fff";
+    card.style.borderRadius = "28px";
+    card.style.width = "90%";
+    card.style.maxWidth = "420px";
+    card.style.padding = "30px 25px";
+    card.style.textAlign = "center";
+    card.style.boxShadow = "0 25px 60px rgba(0, 0, 0, 0.5)";
+    card.style.border = "3px solid #f1c40f";
+    card.style.position = "relative";
+    card.style.transform = "scale(0.8)";
+    card.style.opacity = "0";
+    card.style.animation = "popIn 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
+
+    const headerBg = colorTheme.includes("linear-gradient") ? colorTheme : `linear-gradient(135deg, ${colorTheme}, #2c3e50)`;
+
+    card.innerHTML = `
+        <div style="background: ${headerBg}; color: #fff; padding: 12px; border-radius: 18px; font-weight: 800; font-size: 1.1rem; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+            🎉 Modチップ ゲット！ 🎉
+        </div>
+        
+        <div style="position: relative; width: 220px; height: 220px; margin: 0 auto 20px auto; border-radius: 20px; border: 3px solid #e74c3c; box-shadow: 0 8px 25px rgba(0,0,0,0.25); overflow: hidden; background: #fcfcfc;">
+            <div id="gacha-img-spinner" style="position: absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background: #f9f9f9; z-index: 1;">
+                <div style="width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-top-color: #f39c12; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <div style="margin-top: 12px; font-size: 0.75rem; color: #7f8c8d; font-weight: bold;">AIがイラストを作成中...</div>
+            </div>
+            
+            <img src="${char.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity 0.5s ease;" onload="document.getElementById('gacha-img-spinner').style.display='none'; this.style.opacity='1';" />
+        </div>
+
+        <h3 style="color: var(--navy-dark); font-size: 1.35rem; font-weight: 800; margin: 0 0 8px 0; letter-spacing: -0.5px;">${char.name}</h3>
+        <p style="color: #555; font-size: 0.85rem; line-height: 1.5; margin: 0 0 25px 0; padding: 0 10px;">${char.desc}</p>
+        
+        <button id="btn-close-gacha-modal" style="background: linear-gradient(to right, #34495e, #2c3e50); color: #fff; border: none; padding: 12px 35px; font-size: 0.95rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); outline: none; transition: transform 0.15s ease;">
+            ギャラリーへ見に行く！
+        </button>
+    `;
+
+    if (!document.getElementById("gacha-celebration-styles")) {
+        const style = document.createElement("style");
+        style.id = "gacha-celebration-styles";
+        style.innerHTML = `
+            @keyframes spin { to { transform: rotate(360deg); } }
+        `;
+        document.head.appendChild(style);
+    }
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    speakVoice(`やったね！ガチャで新しいモッドキャラクター、${char.name}をゲットしたよ！AIがとってもカッコいいイラストを描いてくれたから見てみてね！`);
+
+    const closeBtn = document.getElementById("btn-close-gacha-modal");
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            overlay.style.transition = "opacity 0.3s ease";
+            overlay.style.opacity = "0";
+            setTimeout(() => {
+                overlay.remove();
+                
+                const mapTab = document.querySelector('[data-tab="map"]');
+                if (mapTab) {
+                    mapTab.click();
+                    const charSubtab = document.querySelector('[data-subtab="characters"]');
+                    if (charSubtab) {
+                        charSubtab.click();
+                    }
+                }
+            }, 300);
+        });
+
         closeBtn.addEventListener("touchstart", () => { closeBtn.style.transform = "scale(0.95)"; });
         closeBtn.addEventListener("touchend", () => { closeBtn.style.transform = "scale(1)"; });
         closeBtn.addEventListener("mousedown", () => { closeBtn.style.transform = "scale(0.95)"; });
