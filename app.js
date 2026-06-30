@@ -1503,7 +1503,7 @@ window.spinGacha = function() {
         // AIイラストのプロンプトを構築してURLを設定！
         let engRarity = rarity === "item" ? "legendary golden master" : rarity === "custom-country" ? "epic powerful" : "rare creative";
         let promptText = `chibi anime style character icon of ${randomName}, Skibidi type, 3d game mod asset, ${engRarity}, highly detailed, white background`;
-        const gachaImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=300&height=300&nologo=true`;
+        const gachaImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=400&height=400&nologo=true`;
 
         const newChar = {
             name: randomName,
@@ -2800,6 +2800,24 @@ function mergeArrays(arr1, arr2) {
     return unique;
 }
 
+// オブジェクト配列用のID重複排除マージヘルパー (ポインタ参照による重複倍増バグ防止！)
+function mergeObjectArrays(arr1, arr2, key = "id") {
+    const combined = [...(arr1 || []), ...(arr2 || [])];
+    const unique = [];
+    const seen = new Set();
+    for (const item of combined) {
+        if (item && item[key]) {
+            if (!seen.has(item[key])) {
+                seen.add(item[key]);
+                unique.push(item);
+            }
+        } else if (item) {
+            unique.push(item);
+        }
+    }
+    return unique;
+}
+
 // ステータスの進行優先度マップ (先祖返り・巻き戻り防止用)
 const STATUS_PRIORITY = {
     "pending": 1,
@@ -2851,10 +2869,10 @@ function mergeState(local, cloud, isParent) {
         merged.unlockedCountries = mergeArrays(local.unlockedCountries, cloud.unlockedCountries);
         merged.placedCountries = mergeArrays(local.placedCountries, cloud.placedCountries);
         
-        // 創作キャラ、交換、承認リストは親の承認結果（local）を優先して反映
-        merged.createdCharacters = local.createdCharacters || cloud.createdCharacters;
-        merged.rewardExchanges = local.rewardExchanges || cloud.rewardExchanges;
-        merged.pendingApprovals = local.pendingApprovals || cloud.pendingApprovals;
+        // 創作キャラ、交換、承認リストは親の承認結果（local）を優先して反映 (ID重複を防止！)
+        merged.createdCharacters = mergeObjectArrays(local.createdCharacters, cloud.createdCharacters, "name");
+        merged.rewardExchanges = mergeObjectArrays(local.rewardExchanges, cloud.rewardExchanges, "id");
+        merged.pendingApprovals = mergeObjectArrays(local.pendingApprovals, cloud.pendingApprovals, "id");
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
     } else {
         // 子機（iPad）がマージする場合：
@@ -2886,28 +2904,19 @@ function mergeState(local, cloud, isParent) {
             merged.unlockedCountries = cloud.unlockedCountries;
             merged.placedCountries = cloud.placedCountries;
         } else {
-            // 双方が独自にデータを持っている場合は、大きい値（または合算）を優先してデータ消失を防ぐ
-            merged.level = Math.max(local.level, cloud.level);
-            merged.xp = Math.max(local.xp, cloud.xp);
-            merged.coins = Math.max(local.coins, cloud.coins);
+            // 消費ゴールドや獲得レベル・XPの巻き戻り（ガチャを回したのにコインが戻ってしまう現象）を防ぐため、
+            // コインの増減やレベルアップ等の進行は、子機ローカルのアクション結果（local）を絶対正とする！
+            merged.level = local.level;
+            merged.xp = local.xp;
+            merged.coins = local.coins;
             merged.unlockedCountries = mergeArrays(local.unlockedCountries, cloud.unlockedCountries);
             merged.placedCountries = mergeArrays(local.placedCountries, cloud.placedCountries);
         }
 
-        // 創作キャラ、交換申請などのコレクションは消さずに合算マージ
-        const combinedChars = (local.createdCharacters || []).concat(cloud.createdCharacters || []);
-        const uniqueChars = [];
-        const seenCharNames = {};
-        for (let i = 0; i < combinedChars.length; i++) {
-            const char = combinedChars[i];
-            if (char && char.name && !seenCharNames[char.name]) {
-                seenCharNames[char.name] = true;
-                uniqueChars.push(char);
-            }
-        }
-        merged.createdCharacters = uniqueChars;
-        merged.rewardExchanges = mergeArrays(local.rewardExchanges, cloud.rewardExchanges);
-        merged.pendingApprovals = mergeArrays(local.pendingApprovals, cloud.pendingApprovals);
+        // 創作キャラ、交換申請などのコレクションは消さずに合算マージ (ID重複を防止！)
+        merged.createdCharacters = mergeObjectArrays(local.createdCharacters, cloud.createdCharacters, "name");
+        merged.rewardExchanges = mergeObjectArrays(local.rewardExchanges, cloud.rewardExchanges, "id");
+        merged.pendingApprovals = mergeObjectArrays(local.pendingApprovals, cloud.pendingApprovals, "id");
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
     }
 
@@ -3317,8 +3326,8 @@ function showGachaRewardModal(char, colorTheme) {
     const card = document.createElement("div");
     card.style.background = "#fff";
     card.style.borderRadius = "28px";
-    card.style.width = "90%";
-    card.style.maxWidth = "420px";
+    card.style.width = "95%";
+    card.style.maxWidth = "480px";
     card.style.padding = "30px 25px";
     card.style.textAlign = "center";
     card.style.boxShadow = "0 25px 60px rgba(0, 0, 0, 0.5)";
@@ -3335,7 +3344,7 @@ function showGachaRewardModal(char, colorTheme) {
             🎉 Modチップ ゲット！ 🎉
         </div>
         
-        <div style="position: relative; width: 220px; height: 220px; margin: 0 auto 20px auto; border-radius: 20px; border: 3px solid #e74c3c; box-shadow: 0 8px 25px rgba(0,0,0,0.25); overflow: hidden; background: #fcfcfc;">
+        <div style="position: relative; width: 320px; height: 320px; margin: 0 auto 20px auto; border-radius: 20px; border: 3px solid #e74c3c; box-shadow: 0 8px 25px rgba(0,0,0,0.25); overflow: hidden; background: #fcfcfc;">
             <div id="gacha-img-spinner" style="position: absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background: #f9f9f9; z-index: 1;">
                 <div style="width: 40px; height: 40px; border: 4px solid rgba(0,0,0,0.1); border-top-color: #f39c12; border-radius: 50%; animation: spin 1s linear infinite;"></div>
                 <div style="margin-top: 12px; font-size: 0.75rem; color: #7f8c8d; font-weight: bold;">AIがイラストを作成中...</div>
