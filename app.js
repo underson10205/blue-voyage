@@ -1499,10 +1499,9 @@ window.spinGacha = function() {
             desc = "★★ 強力なシミュレーション効果を持つスーパーMod。";
             colorTheme = "linear-gradient(135deg, #e67e22, #d35400)"; // オレンジ/ゴールド
         }
-
-        // AIイラストのプロンプトを構築してURLを設定！
-        let engRarity = rarity === "item" ? "legendary golden master" : rarity === "custom-country" ? "epic powerful" : "rare creative";
-        let promptText = `chibi anime style character icon of ${randomName}, Skibidi type, 3d game mod asset, ${engRarity}, highly detailed, white background`;
+        // AIイラストのプロンプトを構築してURLを設定！ (インベーダーゲーム風を廃止し、超美麗ソシャゲ風カードイラストに！)
+        let engRarity = rarity === "item" ? "ultimate legendary master, golden sparkling aura" : rarity === "custom-country" ? "epic powerful champion, cosmic energy effect" : "cool fantasy adventurer, detailed rendering";
+        let promptText = `masterpiece colorful digital anime illustration of ${randomName}, cool heroic character concept art, ${engRarity}, dynamic action pose, cinematic lighting, highly detailed background, trending on artstation, vivid deep colors`;
         const gachaImgUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=400&height=400&nologo=true`;
 
         const newChar = {
@@ -2961,16 +2960,14 @@ function applyCloudDataToLocal(cloudData) {
         });
     }
 
-    // 🎁 承認されたご褒美（お父さんが「承認して渡す！」ボタンを押してリストから消えたご褒美）を検知！
+    // 🎁 承認されたご褒美（お父さんが「承認して渡す！」ボタンを押して status が completed になったご褒美）を検知！
     const newlyApprovedExchanges = [];
     if (STATE.rewardExchanges && cloudData.rewardExchanges && !STATE.isParentDevice) {
-        STATE.rewardExchanges.forEach(le => {
-            if (le.status === "pending") {
-                // クラウド側の未承認リストの中に、このIDが存在しない場合 ➔ 承認・引き渡し完了！
-                const ce = cloudData.rewardExchanges.find(e => e.id === le.id);
-                if (!ce) {
-                    newlyApprovedExchanges.push(le);
-                }
+        cloudData.rewardExchanges.forEach(ce => {
+            const le = STATE.rewardExchanges.find(e => e.id === ce.id);
+            // ローカルが「申請中(pending)」で、クラウドが「完了(completed)」になった瞬間を検知！
+            if (le && le.status === "pending" && ce.status === "completed") {
+                newlyApprovedExchanges.push(ce);
             }
         });
     }
