@@ -2904,11 +2904,11 @@ function mergeState(local, cloud, isParent) {
             merged.unlockedCountries = cloud.unlockedCountries;
             merged.placedCountries = cloud.placedCountries;
         } else {
-            // 消費ゴールドや獲得レベル・XPの巻き戻り（ガチャを回したのにコインが戻ってしまう現象）を防ぐため、
-            // コインの増減やレベルアップ等の進行は、子機ローカルのアクション結果（local）を絶対正とする！
-            merged.level = local.level;
-            merged.xp = local.xp;
-            merged.coins = local.coins;
+            // 親機（PC）が承認して増やしたゴールドやXP・レベルをiPad側に反映するため、
+            // 同期プルマージ時は、クラウド側の進捗データ（cloud）を優先採用して上書き反映します！
+            merged.level = cloud.level || local.level;
+            merged.xp = cloud.xp || local.xp;
+            merged.coins = cloud.coins !== undefined ? cloud.coins : local.coins;
             merged.unlockedCountries = mergeArrays(local.unlockedCountries, cloud.unlockedCountries);
             merged.placedCountries = mergeArrays(local.placedCountries, cloud.placedCountries);
         }
@@ -3003,9 +3003,14 @@ function applyCloudDataToLocal(cloudData) {
     // 新しく承認されたタスクがあればお祝い演出を起動！
     if (newlyApprovedTasks.length > 0) {
         newlyApprovedTasks.forEach(task => {
+            // 🪙 iPadローカル側でも明示的にコインを追加（同期タイムラグ対策とリアルタイム体験）
+            const coinsToAward = task.rewardCoins !== undefined ? task.rewardCoins : 100;
+            STATE.coins += coinsToAward;
+            
             const country = COUNTRIES_DATA.find(c => c.id === task.rewardCountryId) || { name: "お楽しみ（ランダム）", flag: "🎲" };
             showVoyageApprovalModal(task, country);
         });
+        renderHeader(); // ヘッダーのコイン数を再描画
     }
 
     // 🎁 新しく承認されたご褒美があればお祝い演出を起動！
