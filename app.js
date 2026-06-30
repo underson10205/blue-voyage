@@ -2971,7 +2971,7 @@ function mergeState(local, cloud, isParent) {
         
         // 創作キャラ、交換、承認リストは親の承認結果（local）を優先して反映 (ID重複を防止！)
         merged.createdCharacters = mergeObjectArrays(local.createdCharacters, cloud.createdCharacters, "name");
-        merged.rewardExchanges = mergeObjectArrays(local.rewardExchanges, cloud.rewardExchanges, "id");
+        merged.rewardExchanges = local.rewardExchanges; // 親の承認完了（リスト削除やcompleted化）が絶対優先！
         merged.pendingApprovals = mergeObjectArrays(local.pendingApprovals, cloud.pendingApprovals, "id");
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
     } else {
@@ -3018,20 +3018,11 @@ function mergeState(local, cloud, isParent) {
         merged.pendingApprovals = mergeObjectArrays(local.pendingApprovals, cloud.pendingApprovals, "id");
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
 
-        // 🎁 ご褒美交換リストは、親（クラウド）が完了(completed)したステータスを優先的にマージして、承認完了を確実に引き継ぐ！
-        merged.rewardExchanges = cloud.rewardExchanges.map(ce => {
-            const le = local.rewardExchanges.find(e => e.id === ce.id);
-            if (le) {
-                return {
-                    ...le,
-                    status: ce.status === "completed" ? "completed" : le.status
-                };
-            }
-            return ce;
-        });
+        // 🎁 ご褒美交換リストは、親（クラウド）の最新状態（承認されて completed になったものや削除されたもの）を優先受け取り！
+        merged.rewardExchanges = cloud.rewardExchanges || [];
         // まだクラウドに反映されていないiPadローカル側だけの新規申請（pending）もマージで消えないように合算
         const localOnlyPendingEx = (local.rewardExchanges || []).filter(le => {
-            return !cloud.rewardExchanges.some(ce => ce.id === le.id);
+            return !merged.rewardExchanges.some(ce => ce.id === le.id);
         });
         merged.rewardExchanges = merged.rewardExchanges.concat(localOnlyPendingEx);
     }
@@ -3616,12 +3607,9 @@ function showExchangeApprovalModal(exchange) {
     const closeBtn = document.getElementById("btn-close-exchange-modal-" + exchange.id);
     if (closeBtn) {
         closeBtn.addEventListener("click", () => {
-            // 🪙 モーダルを閉じた瞬間に、ローカルのステータスを確実に completed にして即座に同期プッシュ！
-            const localEx = STATE.rewardExchanges.find(e => e.id === exchange.id);
-            if (localEx) {
-                localEx.status = "completed";
-            }
-            saveState(); // 同期プッシュを実行してクラウドと完全に状態を同期！
+            // 🪙 承認されたご褒美をローカル配列から完全に消去して、二度とお祝いが再発火しないようにする！
+            STATE.rewardExchanges = STATE.rewardExchanges.filter(e => e.id !== exchange.id);
+            saveState(); // 同期プッシュを実行してクラウド上でも完全に消去！
 
             overlay.style.transition = "opacity 0.3s ease";
             overlay.style.opacity = "0";
