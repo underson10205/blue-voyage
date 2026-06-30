@@ -2844,16 +2844,17 @@ function mergeState(local, cloud, isParent) {
         // 2. ご褒美ショップリストは親（ローカル）が絶対
         merged.shopRewards = local.shopRewards;
 
-        // 3. 子の進捗データ（コイン、XP、レベル、パズル、創作キャラ、交換申請）はクラウド（子）を引き継ぐ
-        // ただし、親の承認アクションによってアンロックされた国を消失しないよう、アンロック・配置国は合算マージする
-        merged.level = cloud.level;
-        merged.xp = cloud.xp;
-        merged.coins = cloud.coins;
+        // 3. 子の進捗データと親の承認結果を安全にマージする（上書き消失をガード！）
+        merged.level = Math.max(local.level || 1, cloud.level || 1);
+        merged.xp = Math.max(local.xp || 0, cloud.xp || 0);
+        merged.coins = Math.max(local.coins || 0, cloud.coins || 0);
         merged.unlockedCountries = mergeArrays(local.unlockedCountries, cloud.unlockedCountries);
         merged.placedCountries = mergeArrays(local.placedCountries, cloud.placedCountries);
-        merged.createdCharacters = cloud.createdCharacters;
-        merged.rewardExchanges = cloud.rewardExchanges;
-        merged.pendingApprovals = cloud.pendingApprovals;
+        
+        // 創作キャラ、交換、承認リストは親の承認結果（local）を優先して反映
+        merged.createdCharacters = local.createdCharacters || cloud.createdCharacters;
+        merged.rewardExchanges = local.rewardExchanges || cloud.rewardExchanges;
+        merged.pendingApprovals = local.pendingApprovals || cloud.pendingApprovals;
         merged.geminiApiKey = local.geminiApiKey; // APIキーは各端末固有
     } else {
         // 子機（iPad）がマージする場合：
