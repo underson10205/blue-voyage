@@ -2961,6 +2961,20 @@ function applyCloudDataToLocal(cloudData) {
         });
     }
 
+    // 🎁 承認されたご褒美（お父さんが「承認して渡す！」ボタンを押してリストから消えたご褒美）を検知！
+    const newlyApprovedExchanges = [];
+    if (STATE.rewardExchanges && cloudData.rewardExchanges && !STATE.isParentDevice) {
+        STATE.rewardExchanges.forEach(le => {
+            if (le.status === "pending") {
+                // クラウド側の未承認リストの中に、このIDが存在しない場合 ➔ 承認・引き渡し完了！
+                const ce = cloudData.rewardExchanges.find(e => e.id === le.id);
+                if (!ce) {
+                    newlyApprovedExchanges.push(le);
+                }
+            }
+        });
+    }
+
     // クラウドデータとローカルデータをスマートマージする
     const merged = mergeState(STATE, cloudData, STATE.isParentDevice);
 
@@ -2991,6 +3005,13 @@ function applyCloudDataToLocal(cloudData) {
         newlyApprovedTasks.forEach(task => {
             const country = COUNTRIES_DATA.find(c => c.id === task.rewardCountryId) || { name: "お楽しみ（ランダム）", flag: "🎲" };
             showVoyageApprovalModal(task, country);
+        });
+    }
+
+    // 🎁 新しく承認されたご褒美があればお祝い演出を起動！
+    if (newlyApprovedExchanges.length > 0) {
+        newlyApprovedExchanges.forEach(exchange => {
+            showExchangeApprovalModal(exchange);
         });
     }
 
@@ -3397,6 +3418,81 @@ function showGachaRewardModal(char, colorTheme) {
         closeBtn.addEventListener("touchstart", () => { closeBtn.style.transform = "scale(0.95)"; });
         closeBtn.addEventListener("touchend", () => { closeBtn.style.transform = "scale(1)"; });
         closeBtn.addEventListener("mousedown", () => { closeBtn.style.transform = "scale(0.95)"; });
+        closeBtn.addEventListener("mouseup", () => { closeBtn.style.transform = "scale(1)"; });
+    }
+}
+
+// 親からのご褒美引き渡し（交換承認）お祝いモーダル（子ども画面用）
+function showExchangeApprovalModal(exchange) {
+    const existing = document.getElementById("exchange-approved-modal-" + exchange.id);
+    if (existing) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "exchange-approved-modal-" + exchange.id;
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(10, 20, 40, 0.85)";
+    overlay.style.backdropFilter = "blur(12px)";
+    overlay.style.display = "flex";
+    overlay.style.justifyContent = "center";
+    overlay.style.alignItems = "center";
+    overlay.style.zIndex = "20000";
+    overlay.style.animation = "fadeIn 0.4s ease forwards";
+
+    const card = document.createElement("div");
+    card.style.background = "linear-gradient(135deg, #fff, #fef9e7)";
+    card.style.borderRadius = "28px";
+    card.style.width = "90%";
+    card.style.maxWidth = "440px";
+    card.style.padding = "35px 30px";
+    card.style.textAlign = "center";
+    card.style.boxShadow = "0 20px 50px rgba(0, 0, 0, 0.4)";
+    card.style.border = "4px solid #f1c40f";
+    card.style.position = "relative";
+    card.style.transform = "scale(0.8)";
+    card.style.opacity = "0";
+    card.style.animation = "popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards";
+
+    card.innerHTML = `
+        <div style="font-size: 4.5rem; margin-bottom: 15px; animation: bounce 1.5s infinite;">🎁</div>
+        
+        <h2 style="color: #d35400; margin-top: 0; margin-bottom: 8px; font-weight: 800; font-size: 1.5rem; letter-spacing: -0.5px;">ご褒美が承認されました！</h2>
+        
+        <p style="font-size: 0.9rem; color: #555; margin: 0 0 25px 0; line-height: 1.5;">
+            お父さんお母さんがご褒美の引き渡しを承認したよ！
+        </p>
+
+        <div style="background: rgba(241, 196, 15, 0.15); border: 2px dashed #f1c40f; border-radius: 20px; padding: 20px; margin-bottom: 25px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.02);">
+            <div style="font-size: 0.75rem; color: #7f8c8d; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">手に入れたご褒美</div>
+            <div style="font-size: 1.35rem; color: #2c3e50; font-weight: 800; letter-spacing: -0.5px;">✨ ${exchange.name} ✨</div>
+            <div style="font-size: 0.75rem; color: #95a5a6; margin-top: 5px;">(💰 ${exchange.coins}ゴールド と引き換え)</div>
+        </div>
+
+        <button id="btn-close-exchange-modal-${exchange.id}" style="background: linear-gradient(135deg, #f1c40f, #f39c12); color: #fff; border: none; padding: 14px 40px; font-size: 1.05rem; font-weight: 800; border-radius: 50px; cursor: pointer; box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4); outline: none; transition: transform 0.15s ease, box-shadow 0.15s ease; width: 100%;">
+            やったーー！！
+        </button>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    sound.playFanfare();
+    speakVoice(`やったね！ご褒美の${exchange.name}が承認されたよ！お父さんお母さんから受け取ってね！`);
+
+    const closeBtn = document.getElementById("btn-close-exchange-modal-" + exchange.id);
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            overlay.style.transition = "opacity 0.3s ease";
+            overlay.style.opacity = "0";
+            setTimeout(() => { overlay.remove(); }, 300);
+        });
+
+        closeBtn.addEventListener("touchstart", () => { closeBtn.style.transform = "scale(0.96)"; });
+        closeBtn.addEventListener("touchend", () => { closeBtn.style.transform = "scale(1)"; });
+        closeBtn.addEventListener("mousedown", () => { closeBtn.style.transform = "scale(0.96)"; });
         closeBtn.addEventListener("mouseup", () => { closeBtn.style.transform = "scale(1)"; });
     }
 }
