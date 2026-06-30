@@ -298,8 +298,33 @@ class SoundGenerator {
 const sound = new SoundGenerator();
 
 // ==========================================================================
-// 4. データ保存・読み込み (LocalStorage)
+// 4. データ保存・読み込み (LocalStorage) & 古い画像のポケモンカード風へのアップグレード
 // ==========================================================================
+
+// 古いインベーダー風イラストを、最新のポケモンカード風美麗イラストURLにアップグレード変換する
+function upgradeLegacyCharacterImages() {
+    let changed = false;
+    if (STATE.createdCharacters && STATE.createdCharacters.length > 0) {
+        STATE.createdCharacters.forEach(char => {
+            // 画像が pollinations.ai のもので、かつ古いプロンプトを含んでいる場合、または全画像のクオリティを引き上げる
+            if (char.imageUrl && char.imageUrl.includes("pollinations.ai") && 
+               (char.imageUrl.includes("3d%20game%20mod") || char.imageUrl.includes("chibi%20anime%20style") || !char.imageUrl.includes("trading%20card%20game"))) {
+                
+                let rarity = char.type || "toilet";
+                let engRarity = rarity === "item" ? "ultimate legendary master, golden sparkling aura" : rarity === "custom-country" ? "epic powerful champion, cosmic energy effect" : "cool fantasy adventurer, detailed rendering";
+                let promptText = `full-art trading card game illustration of ${char.name}, cool anime fantasy character, pokemon card style, vivid colors, holographic dynamic pose, epic elemental background, highly rendered, masterpiece, key visual`;
+                const newUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(promptText)}?width=400&height=400&nologo=true`;
+                
+                char.imageUrl = newUrl;
+                changed = true;
+            }
+        });
+    }
+    if (changed) {
+        saveState(true); // 多重送信を防ぐため、skipPush=trueでローカルのみ保存
+    }
+}
+
 function loadState() {
     const saved = localStorage.getItem("blue_voyage_state");
     const todayStr = new Date().toLocaleDateString("ja-JP");
@@ -335,6 +360,9 @@ function loadState() {
     if (!STATE.shopRewards || STATE.shopRewards.length === 0) {
         STATE.shopRewards = [...DEFAULT_REWARDS];
     }
+
+    // 既存キャラクター画像のポケモンカード風へのアップグレード処理を実行！
+    upgradeLegacyCharacterImages();
 }
 
 function saveState(skipPush = false) {
@@ -1133,48 +1161,121 @@ function renderCreatedCharacters() {
     if (!galleryEl) return;
     galleryEl.innerHTML = "";
 
+    // グリッドレイアウト化してトレーディングカードバインダー風にする！
+    galleryEl.style.display = "grid";
+    galleryEl.style.gridTemplateColumns = "repeat(auto-fill, minmax(180px, 1fr))";
+    galleryEl.style.gap = "20px";
+    galleryEl.style.padding = "10px 0";
+
     if (STATE.createdCharacters.length === 0) {
-        galleryEl.innerHTML = `<p class="empty-message">登録された創作キャラクターはありません。上のフォームから、厚紙で作ったキャラなどを追加してみよう！</p>`;
+        galleryEl.innerHTML = `<p class="empty-message" style="grid-column: 1/-1;">登録された創作キャラクターはありません。上のフォームから、厚紙で作ったキャラなどを追加してみよう！</p>`;
         return;
     }
 
     STATE.createdCharacters.forEach((char, index) => {
         const item = document.createElement("div");
-        item.className = "char-gallery-item";
-        item.style.display = "flex";
-        item.style.justifyContent = "space-between";
-        item.style.alignItems = "center";
-        item.style.padding = "12px 15px";
-        item.style.marginBottom = "10px";
-        item.style.background = "#fff";
-        item.style.borderRadius = "12px";
-        item.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+        item.className = "char-card-tcg";
+        
+        // レア度に応じたカード枠とホログラム演出の設定
+        let rarityBorder = "3px solid #3498db"; // R (青)
+        let rarityBg = "linear-gradient(135deg, #f5f7fa, #c3cfe2)";
+        let shadowEffect = "0 8px 20px rgba(0,0,0,0.1)";
+        let rarityBadge = "⭐ レア (R)";
+        let hp = 100 + (index % 5) * 20; // 100〜180 HP
+        let elementIcon = ["🔥", "💧", "⚡", "🌿", "👁️"][index % 5];
+        let attackName = ["バーストキック", "アクアショット", "ギャラクシーキャノン", "リーフストーム", "シャドースラッシュ"][index % 5];
+        let attackDamage = 40 + (index % 5) * 30; // 40〜160 ダメージ
 
-        let badgeClass = "toilet";
-        let typeName = "スキビディ";
-        if (char.type === "custom-country") {
-            badgeClass = "custom-country";
-            typeName = "オリジナル国";
-        } else if (char.type === "item") {
-            badgeClass = "item";
-            typeName = "お宝";
+        if (char.type === "item") {
+            // UR (ウルトラレア)
+            rarityBorder = "3px solid #f1c40f";
+            rarityBg = "linear-gradient(135deg, #fff9e6, #fff3cd)";
+            shadowEffect = "0 12px 25px rgba(241, 196, 15, 0.4), inset 0 0 15px rgba(241, 196, 15, 0.2)";
+            rarityBadge = "🌟 ウルトラレア (UR)";
+            hp = 220;
+        } else if (char.type === "custom-country") {
+            // SR (スーパーレア)
+            rarityBorder = "3px solid #e67e22";
+            rarityBg = "linear-gradient(135deg, #fff3e0, #ffe0b2)";
+            shadowEffect = "0 10px 22px rgba(230, 126, 34, 0.3)";
+            rarityBadge = "✨ スーパーレア (SR)";
+            hp = 180;
         }
 
-        const imgTag = char.imageUrl 
-            ? `<img src="${char.imageUrl}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--gold-brass); flex-shrink: 0;" alt="${char.name}" />`
-            : `<div style="width: 50px; height: 50px; background: rgba(0,0,0,0.05); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">👾</div>`;
+        // TCGカードのインラインスタイル
+        item.style.background = rarityBg;
+        item.style.border = rarityBorder;
+        item.style.boxShadow = shadowEffect;
+        item.style.borderRadius = "18px";
+        item.style.padding = "10px";
+        item.style.position = "relative";
+        item.style.display = "flex";
+        item.style.flexDirection = "column";
+        item.style.justifyContent = "space-between";
+        item.style.height = "290px";
+        item.style.width = "100%";
+        item.style.boxSizing = "border-box";
+        item.style.transition = "transform 0.2s ease, box-shadow 0.2s ease";
+        item.style.cursor = "pointer";
+
+        // ホバーアニメーション
+        item.addEventListener("mouseenter", () => {
+            item.style.transform = "translateY(-6px) scale(1.03)";
+            item.style.boxShadow = char.type === "item" 
+                ? "0 15px 30px rgba(241, 196, 15, 0.6)" 
+                : "0 15px 25px rgba(0,0,0,0.2)";
+        });
+        item.addEventListener("mouseleave", () => {
+            item.style.transform = "none";
+            item.style.boxShadow = shadowEffect;
+        });
+
+        const imgUrl = char.imageUrl || "https://image.pollinations.ai/prompt/monster%20chibi%20pixel?width=200&height=200&nologo=true";
 
         item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
-                ${imgTag}
-                <div class="char-item-info" style="text-align: left;">
-                    <h4 style="margin: 0; font-size: 0.95rem; color: var(--navy-dark);">${char.name}</h4>
-                    <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">${char.desc || '説明なし'}</p>
+            <!-- 上部: ヘッダーエリア (名前, 属性, HP) -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <div style="font-weight: 900; font-size: 0.8rem; color: #2c3e50; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px;">
+                    ${char.name}
+                </div>
+                <div style="font-size: 0.75rem; font-weight: 800; color: #7f8c8d; display: flex; align-items: center; gap: 2px;">
+                    <span style="font-size: 0.7rem; color: #e74c3c;">HP</span>
+                    <span style="font-size: 0.8rem; font-family: monospace; color: #2c3e50; font-weight: bold;">${hp}</span>
+                    <span>${elementIcon}</span>
                 </div>
             </div>
-            <div style="display:flex; flex-direction: column; align-items:flex-end; gap:6px; margin-left: 10px;">
-                <span class="char-badge ${badgeClass}" style="margin: 0;">${typeName}</span>
-                <button class="btn-action btn-danger btn-sm" onclick="deleteCharacter(${index})" style="padding: 2px 6px; font-size:0.6rem;">削除</button>
+
+            <!-- 中央: AIアートエリア -->
+            <div style="width: 100%; height: 125px; border-radius: 10px; border: 2.5px solid #bdc3c7; overflow: hidden; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.1); position: relative;">
+                <img src="${imgUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" alt="${char.name}" />
+                <!-- レア度バッジ (イラストの左下にオーバーレイ) -->
+                <span style="position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.7); color: #fff; padding: 2px 6px; border-radius: 20px; font-size: 0.55rem; font-weight: bold; border: 1px solid rgba(255,255,255,0.3);">
+                    ${rarityBadge}
+                </span>
+            </div>
+
+            <!-- 下部: 技とテキストエリア -->
+            <div style="background: rgba(255,255,255,0.75); border-radius: 10px; padding: 6px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 8px; border: 1px solid rgba(0,0,0,0.05);">
+                <!-- ワザ1 -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed rgba(0,0,0,0.1); padding-bottom: 2px;">
+                    <div style="font-size: 0.7rem; font-weight: 800; color: #2c3e50; display: flex; align-items: center; gap: 3px;">
+                        <span>${elementIcon}</span>
+                        <span>${attackName}</span>
+                    </div>
+                    <div style="font-size: 0.75rem; font-weight: 900; color: #2c3e50; font-family: monospace;">${attackDamage}</div>
+                </div>
+                <!-- 説明文 -->
+                <p style="margin: 3px 0 0 0; font-size: 0.58rem; color: #555; line-height: 1.25; text-align: left; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                    ${char.desc || '大航海で手に入れた特別なModチップ。'}
+                </p>
+            </div>
+
+            <!-- 最下部: カードフッター & 削除ボタン -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 0.5rem; color: #7f8c8d; font-family: monospace; font-weight: bold;">
+                <span>NO. 00${index + 1} / MOD</span>
+                <button onclick="deleteCharacter(${index}); event.stopPropagation();" style="background: #e74c3c; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 0.55rem; font-weight: bold; cursor: pointer; transition: background 0.15s ease;">
+                    削除
+                </button>
             </div>
         `;
         galleryEl.appendChild(item);
@@ -3428,6 +3529,18 @@ function showGachaRewardModal(char, colorTheme) {
 function showExchangeApprovalModal(exchange) {
     const existing = document.getElementById("exchange-approved-modal-" + exchange.id);
     if (existing) return;
+
+    // アニメーション用CSSキーフレームを確実に注入！ (通知が見えないバグ対策)
+    if (!document.getElementById("exchange-approved-modal-styles")) {
+        const style = document.createElement("style");
+        style.id = "exchange-approved-modal-styles";
+        style.innerHTML = `
+            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+            @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+            @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        `;
+        document.head.appendChild(style);
+    }
 
     const overlay = document.createElement("div");
     overlay.id = "exchange-approved-modal-" + exchange.id;
