@@ -74,6 +74,9 @@
             <button class="nav-tab" data-tab="map" id="btn-tab-map">
                 <i data-lucide="globe"></i> <span>世界地図 & 図鑑</span>
             </button>
+            <button class="nav-tab" data-tab="shop" id="btn-tab-shop">
+                <i data-lucide="shopping-bag"></i> <span>港の交易所 (ショップ)</span>
+            </button>
             <button class="nav-tab" data-tab="ai" id="btn-tab-ai">
                 <i data-lucide="navigation"></i> <span>AIコンパス (家庭教師)</span>
             </button>
@@ -157,9 +160,6 @@
                     </button>
                     <button class="sub-tab" data-subtab="characters" id="btn-subtab-characters">
                         <i data-lucide="smile"></i> <span>創作キャラクター (Mod)</span>
-                    </button>
-                    <button class="sub-tab" data-subtab="shop" id="btn-subtab-shop">
-                        <i data-lucide="shopping-bag"></i> <span>港の交易所 (ショップ&ガチャ)</span>
                     </button>
                 </div>
 
@@ -659,43 +659,50 @@
                     </div>
                 </div>
 
-                <!-- サブタブ4: 港の交易所 (ショップ & ガチャ) -->
-                <div id="subtab-shop" class="subtab-pane">
-                    <div class="map-layout">
-                        <!-- 左側：ご褒美ショップ -->
-                        <div class="parchment" style="flex: 1.2;">
-                            <h2 class="section-title"><i data-lucide="shopping-bag"></i> 港の交易所（ご褒美ショップ）</h2>
-                            <p class="section-subtitle">貯まったゴールドを使って、お父さん・お母さんが設定したご褒美と交換できます！</p>
-                            <div class="shop-goods-grid" id="shop-goods-grid">
-                                <!-- JSで動的生成：ご褒美カード -->
+            </section>
+
+            <!-- タブ3: 港の交易所 (ショップ&ガチャ) -->
+            <section id="tab-shop" class="tab-pane">
+                <div class="map-layout">
+                    <!-- 左側：ご褒美ショップ -->
+                    <div class="parchment" style="flex: 1.2;">
+                        <h2 class="section-title"><i data-lucide="shopping-bag"></i> 港の交易所（ご褒美ショップ）</h2>
+                        <p class="section-subtitle">貯まったゴールドを使って、お父さん・お母さんが設定したご褒美と交換できます！</p>
+                        
+                        <div class="gold-balance-bar" style="margin-bottom: 15px; padding: 10px 15px; background: rgba(241, 196, 15, 0.08); border: 1px dashed var(--gold-brass); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; max-width: 300px;">
+                            <span style="font-weight: bold; color: var(--navy-dark); font-size: 0.85rem;"><i data-lucide="anchor" style="width:12px; height:12px; margin-right:4px;"></i> 現在の所持金:</span>
+                            <span style="font-size: 1.15rem; font-weight: 800; color: var(--gold-bright);"><i data-lucide="coins" style="width:14px; height:14px; color:var(--gold-bright); margin-right: 2px;"></i> <span id="shop-current-gold">0</span> G</span>
+                        </div>
+
+                        <div class="shop-goods-grid" id="shop-goods-grid">
+                            <!-- JSで動的生成：ご褒美カード -->
+                        </div>
+                    </div>
+
+                    <!-- 右側：オリジナルModガチャ -->
+                    <div class="parchment" style="flex: 1; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h2 class="section-title"><i data-lucide="dices"></i> オリジナルModガチャ</h2>
+                            <p class="section-subtitle">1回 100ゴールドを消費して、レアな創作キャラクターやアイテムのModチップを引くことができます！</p>
+                        </div>
+
+                        <!-- ガチャマシンUI -->
+                        <div class="gacha-machine-container">
+                            <div class="gacha-machine" id="gacha-machine">
+                                <div class="gacha-glass">
+                                    <div class="gacha-capsule cap1"></div>
+                                    <div class="gacha-capsule cap2"></div>
+                                    <div class="gacha-capsule cap3"></div>
+                                    <div class="gacha-capsule cap4"></div>
+                                </div>
+                                <div class="gacha-crank" id="gacha-crank">⚙️</div>
                             </div>
                         </div>
 
-                        <!-- 右側：オリジナルModガチャ -->
-                        <div class="parchment" style="flex: 1; display:flex; flex-direction:column; justify-content:space-between; align-items:center;">
-                            <div>
-                                <h2 class="section-title"><i data-lucide="dices"></i> オリジナルModガチャ</h2>
-                                <p class="section-subtitle">1回 100ゴールドを消費して、レアな創作キャラクターやアイテムのModチップを引くことができます！</p>
-                            </div>
-
-                            <!-- ガチャマシンUI -->
-                            <div class="gacha-machine-container">
-                                <div class="gacha-machine" id="gacha-machine">
-                                    <div class="gacha-glass">
-                                        <div class="gacha-capsule cap1"></div>
-                                        <div class="gacha-capsule cap2"></div>
-                                        <div class="gacha-capsule cap3"></div>
-                                        <div class="gacha-capsule cap4"></div>
-                                    </div>
-                                    <div class="gacha-crank" id="gacha-crank">⚙️</div>
-                                </div>
-                            </div>
-
-                            <div style="width:100%; text-align:center; margin-top:20px;">
-                                <button id="btn-spin-gacha" class="btn-action btn-primary btn-large" style="width:100%;">
-                                    <i data-lucide="sparkles"></i> 100Gでガチャを回す！
-                                </button>
-                            </div>
+                        <div style="width:100%; text-align:center; margin-top:20px;">
+                            <button id="btn-spin-gacha" class="btn-action btn-primary btn-large" style="width:100%;">
+                                <i data-lucide="sparkles"></i> 100Gでガチャを回す！
+                            </button>
                         </div>
                     </div>
                 </div>

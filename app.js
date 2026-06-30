@@ -772,10 +772,10 @@ function handleDragMove(e) {
 
             const pieceRect = dragEl.getBoundingClientRect();
             const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-            const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25;
+            const pieceCenterY = pieceRect.top + pieceRect.height / 2;
 
             const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-            const snapRadius = Math.max(65, Math.min(rect.width, rect.height) * 0.85);
+            const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.0);
 
             if (dist < snapRadius) {
                 targetPath.classList.add("dragover");
@@ -863,10 +863,10 @@ function handleDragEnd(e) {
 
                 const pieceRect = dragEl.getBoundingClientRect();
                 const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-                const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25; // 25pxのY軸オフセットを補正
+                const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
-                const snapRadius = Math.max(65, Math.min(rect.width, rect.height) * 0.85); // 判定範囲を甘く(65px)
+                const snapRadius = Math.max(75, Math.min(rect.width, rect.height) * 1.0); // 判定範囲を甘く(75px)
 
                 if (dist < snapRadius) {
                     snapped = true;
@@ -883,11 +883,11 @@ function handleDragEnd(e) {
 
                 const pieceRect = dragEl.getBoundingClientRect();
                 const pieceCenterX = pieceRect.left + pieceRect.width / 2;
-                const pieceCenterY = pieceRect.top + pieceRect.height / 2 + 25; // 25pxのY軸オフセットを補正
+                const pieceCenterY = pieceRect.top + pieceRect.height / 2; // 見た目の中心をそのまま使う
 
                 const dist = Math.hypot(targetCenterX - pieceCenterX, targetCenterY - pieceCenterY);
 
-                if (dist < 55) { // ピン型も判定を甘く(55px)
+                if (dist < 65) { // ピン型も判定を甘く(65px)
                     snapped = true;
                 }
             }
@@ -1444,6 +1444,12 @@ function renderShopGoods() {
     if (!gridEl) return;
     gridEl.innerHTML = "";
 
+    // 所持ゴールドの表示を更新
+    const goldSpan = document.getElementById("shop-current-gold");
+    if (goldSpan) {
+        goldSpan.innerText = STATE.coins;
+    }
+
     if (STATE.shopRewards.length === 0) {
         gridEl.innerHTML = `<p class="empty-message" style="grid-column: 1/-1;">現在、交易所にお宝はありません。司令室でご褒美を登録してください。</p>`;
         return;
@@ -1800,6 +1806,7 @@ function triggerVoyageNotification(sched, stage = "exact") {
         updateSecretaryMessage("承知しました、船長。5分間錨を下ろしておきます。少し休憩して準備を整えましょう！");
     };
 }
+
 
 
 
