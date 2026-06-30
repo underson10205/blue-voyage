@@ -2467,6 +2467,10 @@ function initEventListeners() {
             const startInput = document.getElementById("sched-start");
             const endInput = document.getElementById("sched-end");
             const rewardSelect = document.getElementById("sched-reward");
+            
+            // 💰 獲得ゴールドの入力値を取得！
+            const coinsInput = document.getElementById("sched-reward-coins");
+            const rewardCoins = coinsInput ? (parseInt(coinsInput.value, 10) || 100) : 100;
 
             if (STATE.editingScheduleId) {
                 // 編集モード
@@ -2476,13 +2480,14 @@ function initEventListeners() {
                     sched.startTime = startInput.value;
                     sched.endTime = endInput.value;
                     sched.rewardCountryId = rewardSelect.value;
+                    sched.rewardCoins = rewardCoins; // ゴールド設定の保存
                     
                     const timerTaskName = document.getElementById("timer-task-name");
                     if (STATE.currentVoyage && STATE.currentVoyage.id === sched.id && timerTaskName) {
                         timerTaskName.innerText = sched.title;
                     }
                     
-                    alert(`📅 航路「${sched.title}」の変更を保存しました。`);
+                    alert(`📅 航路「${sched.title}」の変更を保存しました。 (報酬: 💰 ${sched.rewardCoins}G)`);
                 }
                 STATE.editingScheduleId = null;
                 const submitBtn = document.getElementById("btn-add-schedule-submit");
@@ -2501,11 +2506,12 @@ function initEventListeners() {
                     startTime: startInput.value,
                     endTime: endInput.value,
                     rewardCountryId: rewardSelect.value,
+                    rewardCoins: rewardCoins, // ゴールド設定の新規保存
                     status: "pending"
                 };
 
                 STATE.schedules.push(newSched);
-                alert(`📅 航路「${newSched.title}」を追加しました。`);
+                alert(`📅 航路「${newSched.title}」を追加しました。 (報酬: 💰 ${newSched.rewardCoins}G)`);
             }
 
             saveState();
